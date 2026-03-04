@@ -1,85 +1,71 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Trophy, User, Lock, Mail, ArrowRight } from 'lucide-react-native';
-// Importamos nuestro componente personalizado para no repetir código
 import CustomInput from '../components/CustomInput';
 
-// Recibimos la función 'onLogin' desde el AppNavigator.
-// Esta función es el "puente" para avisarle a la App que el usuario entró correctamente.
-export default function LoginScreen({ onLogin }) {
-  // Estado local para controlar si mostramos el formulario de registro o el de login
+// Importamos la lógica real de Firebase
+import { auth, db } from '../config/firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+
+export default function LoginScreen() {
   const [isRegistering, setIsRegistering] = useState(false);
-  
-  // Estados para guardar lo que escribe el usuario
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
 
+  const handleAuthentication = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Campos incompletos.");
+      return;
+    }
+
+    try {
+      if (isRegistering) {
+        if (!username) {
+          Alert.alert("Error", "Falta el nombre de usuario.");
+          return;
+        }
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        // Guarda el perfil inicial en Firestore
+        await setDoc(doc(db, 'usuarios', user.uid), {
+          username: username,
+          email: email,
+          nivel: 1,
+          xp_total: 0,
+          racha_actual: 0,
+          created_at: new Date().toISOString()
+        });
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+    } catch (error) {
+      Alert.alert("Error de autenticación", error.message);
+    }
+  };
+
   return (
-    // KeyboardAvoidingView: Evita que el teclado tape los inputs al abrirse.
-    // En iOS usamos "padding" y en Android "height" para que funcione bien.
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      {/* SECCIÓN VISUAL (Logo y Título) */}
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
       <View style={styles.logoSection}>
-        <View style={styles.logoCircle}>
-          <Trophy size={60} color="#2563EB" />
-        </View>
+        <View style={styles.logoCircle}><Trophy size={60} color="#2563EB" /></View>
         <Text style={styles.appTitle}>Trackly</Text>
-        {/* Texto dinámico: Cambia según si se está registrando o no */}
-        <Text style={styles.appSlogan}>
-          {isRegistering ? "Crea tu identidad." : "Bienvenido de nuevo."}
-        </Text>
+        <Text style={styles.appSlogan}>{isRegistering ? "Crea tu identidad." : "Bienvenido."}</Text>
       </View>
 
-      {/* SECCIÓN DEL FORMULARIO */}
       <View style={styles.formSection}>
-        
-        {/* Renderizado Condicional: El campo "Usuario" SOLO se ve si isRegistering es true */}
-        {isRegistering && (
-           <CustomInput 
-             icon={User} 
-             placeholder="Nombre de Usuario" 
-             value={username} 
-             onChangeText={setUsername} 
-           />
-        )}
+        {isRegistering && <CustomInput icon={User} placeholder="Nombre de Usuario" value={username} onChangeText={setUsername} />}
+        <CustomInput icon={Mail} placeholder="Correo" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+        <CustomInput icon={Lock} placeholder="Contraseña" value={password} onChangeText={setPassword} secureTextEntry />
 
-        <CustomInput 
-          icon={Mail} 
-          placeholder="Correo Electrónico" 
-          value={email} 
-          onChangeText={setEmail} 
-          keyboardType="email-address" // Muestra el teclado con @
-          autoCapitalize="none" // Evita mayúsculas automáticas en emails
-        />
-
-        <CustomInput 
-          icon={Lock} 
-          placeholder="Contraseña" 
-          value={password} 
-          onChangeText={setPassword} 
-          secureTextEntry // Oculta los caracteres (puntitos)
-        />
-
-        {/* Botón Principal: Al presionar, ejecuta onLogin pasando los datos */}
-        <TouchableOpacity style={styles.loginButton} onPress={() => onLogin(username, email)}>
-          <Text style={styles.loginButtonText}>
-            {isRegistering ? "Crear Cuenta" : "Iniciar Sesión"}
-          </Text>
+        <TouchableOpacity style={styles.loginButton} onPress={handleAuthentication}>
+          <Text style={styles.loginButtonText}>{isRegistering ? "Crear Cuenta" : "Iniciar Sesión"}</Text>
           <ArrowRight size={20} color="white" />
         </TouchableOpacity>
 
-        {/* Botón Secundario: Cambia el modo (Login <-> Registro) */}
-        <TouchableOpacity 
-          onPress={() => setIsRegistering(!isRegistering)} 
-          style={styles.switchButton}
-        >
-          <Text style={styles.switchText}>
-            {isRegistering ? "¿Ya tienes cuenta? Inicia Sesión" : "¿Nuevo aquí? Regístrate"}
-          </Text>
+        <TouchableOpacity onPress={() => setIsRegistering(!isRegistering)} style={styles.switchButton}>
+          <Text style={styles.switchText}>{isRegistering ? "¿Ya tienes cuenta? Inicia Sesión" : "¿Nuevo aquí? Regístrate"}</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

@@ -3,9 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// PEGA AQUÍ LOS DATOS QUE TE DIO LA CONSOLA DE FIREBASE EN EL PASO 1
-// NUNCA subas estos datos a un repositorio público (GitHub) sin usar variables de entorno (.env).
-// Por ahora, para desarrollo local, ponlos directamente aquí.
+
 const firebaseConfig = {
   apiKey: "AIzaSyBhLVBNoyqu68yRpO5W7IQU1E2fxcOlqXk",
   authDomain: "trackly-c0023.firebaseapp.com",

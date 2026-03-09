@@ -1,9 +1,9 @@
-import 'react-native-gesture-handler'; // Obligatorio para evitar crasheos de navegación
+import 'react-native-gesture-handler';
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
 
-// Importamos la conexión real a Firebase
+// 1. Importaciones críticas de Firebase
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './src/config/firebase';
 
@@ -12,23 +12,25 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Este observador es el que decide qué pantalla ves.
-    // Si tienes sesión guardada, 'currentUser' tendrá datos y saltará al Home.
-    // Si cierras sesión, 'currentUser' será null y volverá al Login.
+    // 2. Este listener es el verdadero motor. 
+    // Escucha si Firebase logró iniciar sesión y actualiza el estado global automáticamente.
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
+  console.log("Firebase detectó usuario:", currentUser ? currentUser.uid : "NINGUNO");
+  setUser(currentUser);
+  setLoading(false);
+});
 
     return unsubscribe;
   }, []);
 
+  // 3. Evita que la pantalla parpadee mientras Firebase revisa si hay una sesión guardada.
   if (loading) {
-    return null; // Evita pantallas blancas o parpadeos mientras Firebase revisa la sesión
+    return null; 
   }
 
   return (
     <NavigationContainer>
+      {/* 4. Le pasamos el estado real de Firebase al navegador */}
       <AppNavigator user={user} />
     </NavigationContainer>
   );

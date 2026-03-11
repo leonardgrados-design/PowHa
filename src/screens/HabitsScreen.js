@@ -1,12 +1,29 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, Alert } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, Alert, TextInput } from "react-native";
 
 export default function HomeScreen() {
 
 const [xp,setXp] = useState(0);
 const [nivel,setNivel] = useState(1);
+
 const [modalVisible,setModalVisible] = useState(false);
+const [crearVisible,setCrearVisible] = useState(false);
+
 const [habit,setHabit] = useState("");
+
+const [nuevoHabit,setNuevoHabit] = useState("");
+const [iconoSeleccionado,setIconoSeleccionado] = useState("⭐");
+
+const [habitos,setHabitos] = useState([
+{nombre:"Correr 2 km",icono:"🏃",xp:10},
+{nombre:"No fumar",icono:"🚭",xp:15},
+{nombre:"Leer 10 min",icono:"📚",xp:12},
+{nombre:"Comer saludable",icono:"🥗",xp:14},
+{nombre:"Hilo dental",icono:"🦷",xp:8},
+{nombre:"Pasear perro",icono:"🐕",xp:10},
+]);
+
+const iconos = ["🏃","📚","🥗","🧘","💧","🚴","🧠","🦷","🐕","⭐"];
 
 function abrirHabit(nombre){
 setHabit(nombre);
@@ -15,7 +32,8 @@ setModalVisible(true);
 
 function completarHabit(){
 
-let experiencia = 10;
+let experiencia = Math.floor(Math.random()*20)+5;
+
 let nuevaXP = xp + experiencia;
 let nuevoNivel = nivel;
 
@@ -40,6 +58,28 @@ Alert.alert(
 
 }
 
+function crearHabit(){
+
+if(nuevoHabit === ""){
+Alert.alert("Escribe un nombre para el hábito");
+return;
+}
+
+let xpRandom = Math.floor(Math.random()*20)+5;
+
+let nuevo = {
+nombre:nuevoHabit,
+icono:iconoSeleccionado,
+xp:xpRandom
+};
+
+setHabitos([...habitos,nuevo]);
+
+setNuevoHabit("");
+setCrearVisible(false);
+
+}
+
 return (
 
 <View style={styles.container}>
@@ -47,6 +87,7 @@ return (
 <Text style={styles.titulo}>Hábitos Saludables</Text>
 
 <View style={styles.cardNivel}>
+
 <Text style={styles.nivel}>Nivel {nivel}</Text>
 
 <View style={styles.barra}>
@@ -54,47 +95,37 @@ return (
 </View>
 
 <Text style={styles.xp}>{xp}/100 XP</Text>
+
 </View>
+
+
+<TouchableOpacity
+style={styles.botonCrear}
+onPress={()=>setCrearVisible(true)}
+>
+<Text style={styles.textoBoton}>+ Crear hábito</Text>
+</TouchableOpacity>
+
 
 <View style={styles.grid}>
 
-<TouchableOpacity style={styles.circulo} onPress={()=>abrirHabit("Correr 2.3 km")}>
-<Text style={styles.emoji}>🏃</Text>
-<Text style={styles.texto}>Correr</Text>
-</TouchableOpacity>
+{habitos.map((h,index)=>(
+<TouchableOpacity
+key={index}
+style={styles.circulo}
+onPress={()=>abrirHabit(h.nombre)}
+>
 
-<TouchableOpacity style={styles.circulo} onPress={()=>abrirHabit("No fumar")}>
-<Text style={styles.emoji}>🚭</Text>
-<Text style={styles.texto}>No fumar</Text>
-</TouchableOpacity>
+<Text style={styles.emoji}>{h.icono}</Text>
+<Text style={styles.texto}>{h.nombre}</Text>
 
-<TouchableOpacity style={styles.circulo} onPress={()=>abrirHabit("Leer 10 min")}>
-<Text style={styles.emoji}>📚</Text>
-<Text style={styles.texto}>Leer</Text>
 </TouchableOpacity>
-
-<TouchableOpacity style={styles.circulo} onPress={()=>abrirHabit("Comer saludable")}>
-<Text style={styles.emoji}>🥗</Text>
-<Text style={styles.texto}>Comer sano</Text>
-</TouchableOpacity>
-
-<TouchableOpacity style={styles.circulo} onPress={()=>abrirHabit("Hilo dental")}>
-<Text style={styles.emoji}>🦷</Text>
-<Text style={styles.texto}>Hilo dental</Text>
-</TouchableOpacity>
-
-<TouchableOpacity style={styles.circulo} onPress={()=>abrirHabit("Pasear perro")}>
-<Text style={styles.emoji}>🐕</Text>
-<Text style={styles.texto}>Pasear perro</Text>
-</TouchableOpacity>
+))}
 
 </View>
 
-<Modal
-visible={modalVisible}
-transparent={true}
-animationType="fade"
->
+
+<Modal visible={modalVisible} transparent animationType="fade">
 
 <View style={styles.modalFondo}>
 
@@ -106,7 +137,7 @@ animationType="fade"
 <Text style={styles.textoBoton}>Completar hábito ✔</Text>
 </Pressable>
 
-<Pressable style={styles.cerrar} onPress={()=>setModalVisible(false)}>
+<Pressable onPress={()=>setModalVisible(false)}>
 <Text style={styles.textoCerrar}>Cerrar</Text>
 </Pressable>
 
@@ -116,37 +147,81 @@ animationType="fade"
 
 </Modal>
 
+
+
+<Modal visible={crearVisible} transparent animationType="slide">
+
+<View style={styles.modalFondo}>
+
+<View style={styles.modalCaja}>
+
+<Text style={styles.modalTitulo}>Nuevo hábito</Text>
+
+<TextInput
+placeholder="Nombre del hábito"
+style={styles.input}
+value={nuevoHabit}
+onChangeText={setNuevoHabit}
+/>
+
+<Text style={{marginBottom:10}}>Elige un icono</Text>
+
+<View style={styles.iconosGrid}>
+
+{iconos.map((icon,index)=>(
+<TouchableOpacity
+key={index}
+onPress={()=>setIconoSeleccionado(icon)}
+style={styles.iconoBtn}
+>
+<Text style={{fontSize:25}}>{icon}</Text>
+</TouchableOpacity>
+))}
+
+</View>
+
+<Pressable style={styles.boton} onPress={crearHabit}>
+<Text style={styles.textoBoton}>Crear hábito</Text>
+</Pressable>
+
+<Pressable onPress={()=>setCrearVisible(false)}>
+<Text style={styles.textoCerrar}>Cancelar</Text>
+</Pressable>
+
+</View>
+
+</View>
+
+</Modal>
+
+
 </View>
 
 );
 }
 
+
 const styles = StyleSheet.create({
 
 container:{
 flex:1,
-backgroundColor:"#ff6b4a",
+backgroundColor:"white",
 alignItems:"center",
 paddingTop:60
 },
 
 titulo:{
 fontSize:30,
-color:"white",
 fontWeight:"bold",
 marginBottom:15
 },
 
 cardNivel:{
-backgroundColor:"white",
+backgroundColor:"#f3f3f3",
 width:"85%",
 borderRadius:15,
 padding:15,
-alignItems:"center",
-shadowColor:"#000",
-shadowOpacity:0.2,
-shadowRadius:5,
-elevation:5
+alignItems:"center"
 },
 
 nivel:{
@@ -157,14 +232,14 @@ fontWeight:"bold"
 barra:{
 width:"100%",
 height:12,
-backgroundColor:"#eee",
+backgroundColor:"#ddd",
 borderRadius:10,
 marginTop:10
 },
 
 progreso:{
 height:12,
-backgroundColor:"#ff6b4a",
+backgroundColor:"#4CAF50",
 borderRadius:10
 },
 
@@ -173,25 +248,35 @@ marginTop:5,
 color:"#555"
 },
 
+botonCrear:{
+backgroundColor:"#4CAF50",
+padding:12,
+borderRadius:10,
+marginTop:20
+},
+
+textoBoton:{
+color:"white",
+fontWeight:"bold"
+},
+
 grid:{
 flexDirection:"row",
 flexWrap:"wrap",
 justifyContent:"center",
-marginTop:25
+marginTop:20
 },
 
 circulo:{
-width:120,
-height:120,
-backgroundColor:"white",
+width:110,
+height:110,
+backgroundColor:"#f9f9f9",
 borderRadius:60,
 justifyContent:"center",
 alignItems:"center",
 margin:10,
-shadowColor:"#000",
-shadowOpacity:0.2,
-shadowRadius:5,
-elevation:5
+borderWidth:1,
+borderColor:"#eee"
 },
 
 emoji:{
@@ -200,12 +285,13 @@ fontSize:28
 
 texto:{
 marginTop:5,
-fontWeight:"bold"
+fontWeight:"bold",
+textAlign:"center"
 },
 
 modalFondo:{
 flex:1,
-backgroundColor:"rgba(0,0,0,0.6)",
+backgroundColor:"rgba(0,0,0,0.5)",
 justifyContent:"center",
 alignItems:"center"
 },
@@ -221,29 +307,32 @@ alignItems:"center"
 modalTitulo:{
 fontSize:22,
 fontWeight:"bold",
-marginBottom:20
-},
-
-boton:{
-backgroundColor:"#ff6b4a",
-padding:15,
-borderRadius:10,
-width:"100%",
-alignItems:"center",
-marginBottom:10
-},
-
-textoBoton:{
-color:"white",
-fontWeight:"bold"
-},
-
-cerrar:{
-padding:10
+marginBottom:15
 },
 
 textoCerrar:{
-color:"gray"
+color:"gray",
+marginTop:10
+},
+
+input:{
+borderWidth:1,
+borderColor:"#ccc",
+width:"100%",
+padding:10,
+borderRadius:10,
+marginBottom:15
+},
+
+iconosGrid:{
+flexDirection:"row",
+flexWrap:"wrap",
+justifyContent:"center",
+marginBottom:15
+},
+
+iconoBtn:{
+margin:8
 }
 
 });

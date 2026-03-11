@@ -7,6 +7,7 @@ import { Home, BarChart2, PlusCircle, Bell, User } from 'lucide-react-native';
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
 import AddHabitScreen from '../screens/AddHabitScreen'; // IMPORTACIÓN NUEVA
+import NotificationsScreen from '../screens/NotificationsScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -65,7 +66,7 @@ function MainTabNavigator() {
       <Tab.Screen name="Estadisticas">{() => <DummyScreen name="Estadísticas" />}</Tab.Screen>
       {/* CONECTADO: La pestaña de 'Agregar' ahora abre AddHabitScreen */}
       <Tab.Screen name="Agregar" component={AddHabitScreen} />
-      <Tab.Screen name="Notificaciones">{() => <DummyScreen name="Notificaciones" />}</Tab.Screen>
+      <Tab.Screen name="Notificaciones" component={NotificationsScreen} />
       <Tab.Screen name="Perfil">{() => <DummyScreen name="Perfil" />}</Tab.Screen>
     </Tab.Navigator>
   );

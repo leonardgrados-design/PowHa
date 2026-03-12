@@ -8,6 +8,7 @@ import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
 import AddHabitScreen from '../screens/AddHabitScreen'; // IMPORTACIÓN NUEVA
 import NotificationsScreen from '../screens/NotificationsScreen';
+import StatusScreen from '../screens/StatusScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -63,7 +64,7 @@ function MainTabNavigator() {
       })}
     >
       <Tab.Screen name="Inicio" component={HomeScreen} />
-      <Tab.Screen name="Estadisticas">{() => <DummyScreen name="Estadísticas" />}</Tab.Screen>
+      <Tab.Screen name="Estadisticas" component={StatusScreen} />
       {/* CONECTADO: La pestaña de 'Agregar' ahora abre AddHabitScreen */}
       <Tab.Screen name="Agregar" component={AddHabitScreen} />
       <Tab.Screen name="Notificaciones" component={NotificationsScreen} />

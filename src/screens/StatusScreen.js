@@ -34,7 +34,6 @@ export default function StatusScreen() {
 
       <Text style={styles.title}>Tu progreso</Text>
 
-      {/* AVATAR PLACEHOLDER */}
       <View style={styles.avatarCard}>
         <Ionicons name="person-circle" size={100} color="#3B82F6" />
         <Text style={styles.avatarText}>
@@ -42,7 +41,7 @@ export default function StatusScreen() {
         </Text>
       </View>
 
-      {/* RACHA */}
+
       <View style={styles.card}>
         <Ionicons name="flame" size={30} color="#F97316" />
         <Text style={styles.cardTitle}>Racha actual</Text>
@@ -52,7 +51,6 @@ export default function StatusScreen() {
         </Text>
       </View>
 
-      {/* EVOLUCIÓN CORPORAL */}
       <View style={styles.card}>
         <Ionicons name="body" size={30} color="#3B82F6" />
         <Text style={styles.cardTitle}>Evolución corporal</Text>
@@ -74,7 +72,6 @@ export default function StatusScreen() {
         </Text>
       </View>
 
-      {/* ACTIVIDAD SEMANAL */}
       <View style={styles.card}>
         <Ionicons name="barbell" size={30} color="#22C55E" />
         <Text style={styles.cardTitle}>Actividad semanal</Text>
@@ -92,7 +89,6 @@ export default function StatusScreen() {
         </Text>
       </View>
 
-      {/* GRÁFICA DE PROGRESO */}
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>Evolución de peso</Text>
 
@@ -121,7 +117,7 @@ export default function StatusScreen() {
         />
       </View>
 
-      {/* ANALISIS DE HÁBITOS */}
+
       <View style={styles.card}>
         <Ionicons name="analytics" size={30} color="#8B5CF6" />
         <Text style={styles.cardTitle}>Análisis</Text>

@@ -9,7 +9,7 @@ import HomeScreen from '../screens/HomeScreen';
 import AddHabitScreen from '../screens/AddHabitScreen'; 
 import NotificationsScreen from '../screens/NotificationsScreen';
 import StatusScreen from '../screens/StatusScreen';
-
+import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -66,9 +66,9 @@ function MainTabNavigator() {
     >
       <Tab.Screen name="Inicio" component={HomeScreen} />
       <Tab.Screen name="Estadisticas" component={StatusScreen} />
-      <Tab.Screen name="Agregar" component={AddHabitsScreen} />
+      <Tab.Screen name="Agregar" component={AddHabitScreen} />
       <Tab.Screen name="Notificaciones" component={NotificationsScreen} />
-      <Tab.Screen name="Perfil">{() => <DummyScreen name="Perfil" />}</Tab.Screen>
+      <Tab.Screen name="Perfil" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }

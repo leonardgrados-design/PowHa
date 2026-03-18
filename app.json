@@ -1,35 +1,56 @@
 {
   "expo": {
     "name": "Trackly",
-    "slug": "Trackly",
-    "scheme":"Trackly",
+    "slug": "trackly",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0A0A0F"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.trackly.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Trackly necesita acceso a tu galería para que puedas elegir una foto de perfil.",
+        "NSPhotoLibraryAddUsageDescription": "Trackly necesita acceso para guardar fotos en tu galería.",
+        "NSCameraUsageDescription": "Trackly necesita acceso a tu cámara para que puedas tomarte una foto de perfil."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0A0A0F"
       },
-      "edgeToEdgeEnabled": true
-    },
-    "web": {
-      "favicon": "./assets/favicon.png",
-      "bundler":"metro"
+      "package": "com.trackly.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "plugins": [
-      "expo-router"
-    ]
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Trackly necesita acceso a tus fotos para elegir una imagen de perfil.",
+          "cameraPermission": "Trackly necesita acceso a la cámara para tomar tu foto de perfil."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#6366F1"
+        }
+      ]
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
   }
- 
 }

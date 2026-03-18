@@ -1,316 +1,345 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  ScrollView, 
-  SafeAreaView, 
-  Platform, 
-  StatusBar,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  StyleSheet, Text, View, ScrollView, SafeAreaView,
+  Platform, StatusBar, TouchableOpacity,
+  ActivityIndicator, Alert, Animated,
 } from 'react-native';
-import { Check, Flame, ChevronRight, Inbox, CheckCircle2 } from 'lucide-react-native';
+import { Check, Flame, Inbox, CheckCircle2, Zap } from 'lucide-react-native';
 
-// Importaciones críticas de Firebase
 import { auth, db } from '../config/firebase';
-import { collection, query, where, onSnapshot, addDoc, getDocs, deleteDoc, doc, updateDoc, increment, getDoc } from 'firebase/firestore';
+import {
+  collection, query, where, onSnapshot,
+  addDoc, getDocs, deleteDoc, doc,
+  updateDoc, increment, getDoc,
+} from 'firebase/firestore';
+import { C, S, R, F, common, CATEGORY_CONFIG } from '../theme';
+import {
+  scheduleAllHabits,
+  onHabitCompleted,
+  onHabitUncompleted,
+} from '../services/NotificationService';
 
+// ─── Frequency filter ─────────────────────────────────────────────────────────
+function habitIsForToday(habit) {
+  const todayDay = new Date().getDay();
+  const { frecuencia, dias_semana, cada_x_dias, fecha_inicio } = habit;
+  switch (frecuencia) {
+    case 'diario':           return true;
+    case 'entre_semana':     return todayDay >= 1 && todayDay <= 5;
+    case 'fines_semana':     return todayDay === 0 || todayDay === 6;
+    case 'dias_especificos': return Array.isArray(dias_semana) && dias_semana.includes(todayDay);
+    case 'cada_x_dias': {
+      if (!fecha_inicio || !cada_x_dias) return true;
+      const start = new Date(fecha_inicio); start.setHours(0, 0, 0, 0);
+      const now   = new Date();             now.setHours(0, 0, 0, 0);
+      const diff  = Math.round((now - start) / 86400000);
+      return diff >= 0 && diff % cada_x_dias === 0;
+    }
+    default: return true;
+  }
+}
+
+// ─── Habit Card ───────────────────────────────────────────────────────────────
+function HabitCard({ habit, onPress, disabled }) {
+  const scale     = useRef(new Animated.Value(1)).current;
+  const checkAnim = useRef(new Animated.Value(habit.completado_hoy ? 1 : 0)).current;
+  const cfg       = CATEGORY_CONFIG[habit.categoria] || CATEGORY_CONFIG.cuerpo;
+
+  useEffect(() => {
+    Animated.spring(checkAnim, {
+      toValue: habit.completado_hoy ? 1 : 0,
+      useNativeDriver: true, tension: 80, friction: 8,
+    }).start();
+  }, [habit.completado_hoy]);
+
+  const pressIn    = () => Animated.spring(scale, { toValue: 0.95, useNativeDriver: true, tension: 200 }).start();
+  const pressOut   = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, tension: 200 }).start();
+  const checkScale = checkAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.3, 1] });
+
+  const freqLabel = (() => {
+    switch (habit.frecuencia) {
+      case 'entre_semana':     return 'Lun–Vie';
+      case 'fines_semana':     return 'Sáb–Dom';
+      case 'dias_especificos': return `${(habit.dias_semana || []).length}d/sem`;
+      case 'cada_x_dias':      return `c/${habit.cada_x_dias}d`;
+      default:                 return 'Diario';
+    }
+  })();
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity
+        onPress={onPress} onPressIn={pressIn} onPressOut={pressOut}
+        disabled={disabled} activeOpacity={1}
+        style={[styles.habitCard, habit.completado_hoy && styles.habitCardDone, { borderLeftColor: cfg.color }]}
+      >
+        <View style={[styles.habitIconWrap, { backgroundColor: cfg.bg }]}>
+          <Text style={styles.habitEmoji}>{habit.icono}</Text>
+        </View>
+        <View style={styles.habitText}>
+          <Text style={[styles.habitTitle, habit.completado_hoy && styles.habitTitleDone]} numberOfLines={1}>
+            {habit.titulo}
+          </Text>
+          <View style={styles.habitMetaRow}>
+            <Text style={styles.habitMeta}>
+              {cfg.label} · {habit.horario === 'cualquiera' ? 'Flexible' : habit.horario}
+            </Text>
+            <View style={styles.freqBadge}>
+              <Text style={styles.freqBadgeText}>{freqLabel}</Text>
+            </View>
+          </View>
+        </View>
+        <View style={styles.habitRight}>
+          {!habit.completado_hoy && (
+            <View style={styles.xpPill}>
+              <Zap size={10} color={C.accentIndigo} />
+              <Text style={styles.xpText}>+{habit.valor_xp || 10}</Text>
+            </View>
+          )}
+          <Animated.View style={[
+            styles.checkCircle,
+            habit.completado_hoy && styles.checkCircleDone,
+            { transform: [{ scale: checkScale }] },
+          ]}>
+            {habit.completado_hoy && <Check size={14} color="#fff" strokeWidth={3} />}
+          </Animated.View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
-  const [stats, setStats] = useState({ xp: 0, level: 1, streak: 0 }); 
-  const [habits, setHabits] = useState([]);
-  const [completedTodayIds, setCompletedTodayIds] = useState([]); 
-  const [loading, setLoading] = useState(true);
-  const [isToggling, setIsToggling] = useState(false);
+  const [stats,             setStats]             = useState({ xp: 0, level: 1, streak: 0 });
+  const [habits,            setHabits]            = useState([]);
+  const [completedTodayIds, setCompletedTodayIds] = useState([]);
+  const [loading,           setLoading]           = useState(true);
+  const [isToggling,        setIsToggling]        = useState(false);
 
+  const xpBarAnim  = useRef(new Animated.Value(0)).current;
+  const headerFade = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(headerFade, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+  }, []);
+
+  useEffect(() => {
+    Animated.spring(xpBarAnim, {
+      toValue: (stats.xp % 50) / 50,
+      useNativeDriver: false, tension: 60, friction: 10,
+    }).start();
+  }, [stats.xp]);
+
+  // ── Firebase listeners ────────────────────────────────────────────────────
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) return;
+    const todayStr = new Date().toLocaleDateString('en-CA');
 
-    const today = new Date();
-    const todayStr = today.toLocaleDateString('en-CA'); 
+    const unsubUser = onSnapshot(doc(db, 'usuarios', user.uid), (snap) => {
+      if (!snap.exists()) return;
+      const d    = snap.data();
+      const yStr = (() => { const y = new Date(); y.setDate(y.getDate() - 1); return y.toLocaleDateString('en-CA'); })();
+      let streak = d.racha_actual || 0;
+      if (d.ultima_fecha_racha && d.ultima_fecha_racha !== todayStr && d.ultima_fecha_racha !== yStr) streak = 0;
+      setStats({ xp: d.xp_total || 0, level: Math.floor((d.xp_total || 0) / 50) + 1, streak });
+    }, (e) => { if (e.code !== 'permission-denied') console.error(e); });
 
-    // 1. LISTENER DE PERFIL
-    const unsubscribeUser = onSnapshot(doc(db, 'usuarios', user.uid), (docSnap) => {
-      if (docSnap.exists()) {
-        const userData = docSnap.data();
-        
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toLocaleDateString('en-CA');
-        
-        let displayStreak = userData.racha_actual || 0;
-        const ultimaFecha = userData.ultima_fecha_racha;
-
-        if (ultimaFecha && ultimaFecha !== todayStr && ultimaFecha !== yesterdayStr) {
-            displayStreak = 0;
-        }
-
-        setStats({
-          xp: userData.xp_total || 0,
-          level: Math.floor((userData.xp_total || 0) / 50) + 1,
-          streak: displayStreak
-        });
-      }
-    }, (error) => console.error("Error perfil:", error));
-
-    // 2. LISTENER DE HÁBITOS (Solo activos)
-    const qHabits = query(
-      collection(db, 'habitos'), 
-      where('user_id', '==', user.uid),
-      where('activo', '==', true) 
+    const unsubHabits = onSnapshot(
+      query(collection(db, 'habitos'), where('user_id', '==', user.uid), where('activo', '==', true)),
+      (snap) => setHabits(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      (e)    => { if (e.code !== 'permission-denied') console.error(e); }
     );
-    const unsubscribeHabits = onSnapshot(qHabits, (querySnapshot) => {
-      const habitosDescargados = [];
-      querySnapshot.forEach((documento) => {
-        habitosDescargados.push({ id: documento.id, ...documento.data() });
-      });
-      setHabits(habitosDescargados);
-    }, (error) => console.error("Error hábitos:", error));
 
-    // 3. LISTENER DEL HISTORIAL DE HOY
-    const qRegistros = query(
-      collection(db, 'registros_habito'), 
-      where('user_id', '==', user.uid),
-      where('fecha_completado', '==', todayStr)
+    const unsubRecords = onSnapshot(
+      query(collection(db, 'registros_habito'), where('user_id', '==', user.uid), where('fecha_completado', '==', todayStr)),
+      (snap) => {
+        const ids = snap.docs.map(d => d.data().habit_id);
+        setCompletedTodayIds(ids);
+        setLoading(false);
+
+        // Reschedule notifications whenever completed list changes
+        scheduleAllHabits(ids).catch(console.error);
+      },
+      (e) => { if (e.code !== 'permission-denied') console.error(e); setLoading(false); }
     );
-    const unsubscribeRegistros = onSnapshot(qRegistros, (querySnapshot) => {
-      const completados = querySnapshot.docs.map(doc => doc.data().habit_id);
-      setCompletedTodayIds(completados);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error registros:", error);
-      setLoading(false);
-    });
 
-    return () => {
-      unsubscribeUser();
-      unsubscribeHabits();
-      unsubscribeRegistros();
-    };
+    return () => { unsubUser(); unsubHabits(); unsubRecords(); };
   }, []);
 
+  // ── Toggle habit ──────────────────────────────────────────────────────────
   const toggleHabit = async (habit) => {
-    if (isToggling) return; 
+    if (isToggling) return;
     setIsToggling(true);
 
-    const todayStr = new Date().toLocaleDateString('en-CA');
-    const isCompleted = completedTodayIds.includes(habit.id);
-    const userRef = doc(db, 'usuarios', auth.currentUser.uid); 
+    const todayStr  = new Date().toLocaleDateString('en-CA');
+    const completed = completedTodayIds.includes(habit.id);
+    const userRef   = doc(db, 'usuarios', auth.currentUser.uid);
 
     try {
-      if (isCompleted) {
-        // DESHACER
-        const q = query(
-          collection(db, 'registros_habito'), 
-          where('habit_id', '==', habit.id), 
+      if (completed) {
+        // ── Uncomplete ──
+        const snap = await getDocs(query(
+          collection(db, 'registros_habito'),
+          where('habit_id', '==', habit.id),
           where('fecha_completado', '==', todayStr)
-        );
-        const snapshot = await getDocs(q);
-        
-        snapshot.forEach(async (documento) => {
-          await deleteDoc(doc(db, 'registros_habito', documento.id));
-        });
+        ));
+        snap.forEach(async d => await deleteDoc(doc(db, 'registros_habito', d.id)));
+        await updateDoc(userRef, { xp_total: increment(-(habit.valor_xp || 10)) });
 
-        await updateDoc(userRef, {
-          xp_total: increment(-(habit.valor_xp || 10))
-        });
-
+        // Reschedule notification since it's no longer done
+        await onHabitUncompleted(habit);
       } else {
-        // COMPLETAR
+        // ── Complete ──
         await addDoc(collection(db, 'registros_habito'), {
-          user_id: auth.currentUser.uid,
-          habit_id: habit.id,
+          user_id:          auth.currentUser.uid,
+          habit_id:         habit.id,
           fecha_completado: todayStr,
-          xp_otorgada: habit.valor_xp || 10
+          xp_otorgada:      habit.valor_xp || 10,
         });
 
-        const userSnap = await getDoc(userRef);
-        const userData = userSnap.data() || {};
-        const ultimaFecha = userData.ultima_fecha_racha;
-        const rachaActual = userData.racha_actual || 0;
-
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toLocaleDateString('en-CA');
-
-        let updateData = {
-          xp_total: increment(habit.valor_xp || 10)
-        };
-
-        if (ultimaFecha !== todayStr) {
-          if (ultimaFecha === yesterdayStr) {
-            updateData.racha_actual = rachaActual + 1; 
-          } else {
-            updateData.racha_actual = 1; 
-          }
-          updateData.ultima_fecha_racha = todayStr;
+        const ud   = (await getDoc(userRef)).data() || {};
+        const yStr = (() => { const y = new Date(); y.setDate(y.getDate() - 1); return y.toLocaleDateString('en-CA'); })();
+        let upd    = { xp_total: increment(habit.valor_xp || 10) };
+        if (ud.ultima_fecha_racha !== todayStr) {
+          upd.racha_actual       = ud.ultima_fecha_racha === yStr ? (ud.racha_actual || 0) + 1 : 1;
+          upd.ultima_fecha_racha = todayStr;
         }
+        await updateDoc(userRef, upd);
 
-        await updateDoc(userRef, updateData);
+        // Cancel notification since it's done
+        await onHabitCompleted(habit.id);
       }
-    } catch (error) {
-      console.error("Error al actualizar:", error);
-      Alert.alert("Error de Sincronización", "No se pudo guardar el progreso.");
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo guardar el progreso.');
     } finally {
       setIsToggling(false);
     }
   };
 
-  const mappedHabits = habits.map(h => ({
-    ...h,
-    completado_hoy: completedTodayIds.includes(h.id)
-  }));
+  // ── Derived data ──────────────────────────────────────────────────────────
+  const todayHabits = habits.filter(habitIsForToday);
+  const mapped      = todayHabits.map(h => ({ ...h, completado_hoy: completedTodayIds.includes(h.id) }));
+  const pending     = mapped.filter(h => !h.completado_hoy);
+  const done        = mapped.filter(h =>  h.completado_hoy);
+  const allDone     = pending.length === 0 && done.length > 0;
+  const skipped     = habits.length - todayHabits.length;
 
-  // Filtramos estrictamente: los pendientes se quedan arriba, los completados bajan.
-  const pendingPhysical = mappedHabits.filter(h => h.categoria === 'cuerpo' && !h.completado_hoy);
-  const pendingMental = mappedHabits.filter(h => h.categoria === 'mente' && !h.completado_hoy);
-  const completedToday = mappedHabits.filter(h => h.completado_hoy);
+  const pendingByCat = {
+    cuerpo: pending.filter(h => h.categoria === 'cuerpo'),
+    mente:  pending.filter(h => h.categoria === 'mente'),
+    other:  pending.filter(h => h.categoria !== 'cuerpo' && h.categoria !== 'mente'),
+  };
 
-  const isAllDone = pendingPhysical.length === 0 && pendingMental.length === 0 && completedToday.length > 0;
+  const xpWidth    = xpBarAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+  const levelEmoji = stats.level >= 10 ? '👑' : stats.level >= 5 ? '😎' : stats.level >= 3 ? '🔥' : '😐';
+  const greeting   = (() => {
+    const h = new Date().getHours();
+    return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+  })();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
-        <View style={styles.headerContainer}>
+    <SafeAreaView style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bgBase} />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }}>
+
+        {/* Header */}
+        <Animated.View style={[styles.header, { opacity: headerFade }]}>
           <View>
-            <Text style={styles.greetingText}>Hola de nuevo</Text>
-            <Text style={styles.subGreetingText}>Es hora de evolucionar.</Text>
+            <Text style={styles.greeting}>{greeting}</Text>
+            <Text style={styles.subGreeting}>Es hora de evolucionar.</Text>
           </View>
-          
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={styles.streakBadge}>
-              <Flame size={18} color="#F97316" fill={stats.streak > 0 ? "#F97316" : "transparent"} />
-              <Text style={styles.streakText}>{stats.streak}</Text>
+          {stats.streak > 0 && (
+            <View style={common.streakBadge}>
+              <Flame size={16} color={C.accentAmber} fill={C.accentAmber} />
+              <Text style={common.streakNum}>{stats.streak}</Text>
             </View>
+          )}
+        </Animated.View>
+
+        {/* Banner */}
+        <View style={styles.banner}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: S.sm, marginBottom: 4 }}>
+              <Text style={styles.bannerLevel}>Nivel {stats.level}</Text>
+              <View style={common.levelBadge}><Text style={common.levelBadgeText}>{levelEmoji}</Text></View>
+            </View>
+            <Text style={styles.bannerXP}>{stats.xp} XP acumulada</Text>
+            <View style={common.xpBarBg}>
+              <Animated.View style={[common.xpBarFill, { width: xpWidth }]} />
+            </View>
+            <Text style={styles.xpBarLabel}>{stats.xp % 50}/50 XP → Nivel {stats.level + 1}</Text>
+          </View>
+          <View style={[common.avatarCircle, { width: 72, height: 72, borderRadius: R.lg }]}>
+            <Text style={{ fontSize: 36 }}>{levelEmoji}</Text>
           </View>
         </View>
 
-        <View style={styles.bannerContainer}>
-          <View style={styles.bannerTextContainer}>
-            <Text style={styles.bannerTitle}>Nivel {stats.level}</Text>
-            <Text style={styles.bannerSubtitle}>{stats.xp} XP Total Acumulada</Text>
-            <View style={styles.progressContainer}>
-               <View style={styles.progressBarBg}>
-                 <View style={[styles.progressBarFill, { width: `${(stats.xp % 50) * 2}%` }]} />
-               </View>
-               <Text style={styles.progressText}>{stats.xp % 50}/50 XP para el siguiente nivel</Text>
-            </View>
+        {skipped > 0 && (
+          <View style={styles.skippedNotice}>
+            <Text style={styles.skippedText}>
+              {skipped} hábito{skipped > 1 ? 's' : ''} no programado{skipped > 1 ? 's' : ''} para hoy
+            </Text>
           </View>
-          <View style={styles.avatarContainer}>
-             <View style={styles.avatarCircle}>
-                <Text style={styles.avatarEmoji}>{stats.level >= 5 ? "😎" : stats.level >= 3 ? "🔥" : "😐"}</Text>
-             </View>
-          </View>
-        </View>
+        )}
 
+        {/* Content */}
         {loading ? (
-          <View style={styles.centerContent}>
-            <ActivityIndicator size="large" color="#3B82F6" />
+          <View style={{ alignItems: 'center', marginTop: 60 }}>
+            <ActivityIndicator size="large" color={C.accentIndigo} />
           </View>
         ) : habits.length === 0 ? (
-          <View style={styles.emptyStateContainer}>
-            <Inbox size={48} color="#D1D5DB" />
-            <Text style={styles.emptyStateTitle}>No tienes hábitos activos</Text>
-            <Text style={styles.emptyStateDesc}>Toca el botón "+" en el menú inferior para crear tu primer objetivo.</Text>
+          <View style={[common.emptyState, { marginHorizontal: S.lg, marginTop: 32 }]}>
+            <Inbox size={44} color={C.textMuted} strokeWidth={1.5} />
+            <Text style={common.emptyTitle}>Sin hábitos todavía</Text>
+            <Text style={common.emptyDesc}>Toca el botón + para crear tu primer objetivo.</Text>
+          </View>
+        ) : todayHabits.length === 0 ? (
+          <View style={[common.emptyState, { marginHorizontal: S.lg, marginTop: 32 }]}>
+            <Text style={{ fontSize: 40, marginBottom: 12 }}>🎉</Text>
+            <Text style={common.emptyTitle}>¡Día libre!</Text>
+            <Text style={common.emptyDesc}>Ningún hábito está programado para hoy.</Text>
           </View>
         ) : (
           <>
-            {/* ESTADOS PENDIENTES */}
-            {isAllDone && (
-              <View style={styles.allDoneContainer}>
-                <CheckCircle2 size={40} color="#10B981" />
+            {allDone && (
+              <View style={styles.allDone}>
+                <CheckCircle2 size={36} color={C.accentGreen} />
                 <Text style={styles.allDoneTitle}>¡Día completado!</Text>
-                <Text style={styles.allDoneDesc}>Has terminado todos tus objetivos por hoy.</Text>
+                <Text style={styles.allDoneDesc}>Todos tus hábitos de hoy están hechos.</Text>
               </View>
             )}
 
-            {pendingPhysical.length > 0 && (
-              <>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Cuerpo & Físico</Text>
-                  <ChevronRight size={20} color="#1F2937" />
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-                  <View style={styles.horizontalContainer}>
-                    {pendingPhysical.map(habit => (
-                      <TouchableOpacity 
-                        key={habit.id} 
-                        style={styles.habitCard} 
-                        onPress={() => toggleHabit(habit)} 
-                        activeOpacity={0.8}
-                        disabled={isToggling}
-                      >
-                        <View style={styles.iconCircle}>
-                          <Text style={styles.emojiIcon}>{habit.icono}</Text>
-                        </View>
-                        <Text style={styles.habitTitle} numberOfLines={1}>{habit.titulo}</Text>
-                        <Text style={styles.xpBadge}>+{habit.valor_xp || 10} XP</Text>
-                      </TouchableOpacity>
-                    ))}
+            {(['cuerpo', 'mente', 'other']).map(cat => {
+              const list = pendingByCat[cat];
+              if (!list?.length) return null;
+              const cfg = CATEGORY_CONFIG[cat] || CATEGORY_CONFIG.cuerpo;
+              return (
+                <View key={cat} style={styles.section}>
+                  <View style={styles.sectionHeader}>
+                    <View style={[styles.sectionDot, { backgroundColor: cfg.color }]} />
+                    <Text style={styles.sectionTitle}>{cfg.label}</Text>
+                    <Text style={styles.sectionCount}>{list.length}</Text>
                   </View>
-                </ScrollView>
-              </>
-            )}
+                  {list.map(h => (
+                    <HabitCard key={h.id} habit={h} onPress={() => toggleHabit(h)} disabled={isToggling} />
+                  ))}
+                </View>
+              );
+            })}
 
-            {pendingMental.length > 0 && (
-              <>
+            {done.length > 0 && (
+              <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Mente & Enfoque</Text>
-                  <ChevronRight size={20} color="#1F2937" />
+                  <View style={[styles.sectionDot, { backgroundColor: C.accentGreen }]} />
+                  <Text style={[styles.sectionTitle, { color: C.textMuted }]}>Completados hoy</Text>
+                  <Text style={styles.sectionCount}>{done.length}</Text>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-                  <View style={styles.horizontalContainer}>
-                    {pendingMental.map(habit => (
-                      <TouchableOpacity 
-                        key={habit.id} 
-                        style={styles.habitCard} 
-                        onPress={() => toggleHabit(habit)} 
-                        activeOpacity={0.8}
-                        disabled={isToggling}
-                      >
-                        <View style={styles.iconCircle}>
-                          <Text style={styles.emojiIcon}>{habit.icono}</Text>
-                        </View>
-                        <Text style={styles.habitTitle} numberOfLines={1}>{habit.titulo}</Text>
-                        <Text style={styles.xpBadge}>+{habit.valor_xp || 15} XP</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </ScrollView>
-              </>
-            )}
-
-            {/* SECCIÓN DE COMPLETADOS HOY */}
-            {completedToday.length > 0 && (
-              <>
-                <View style={[styles.sectionHeader, { marginTop: pendingPhysical.length === 0 && pendingMental.length === 0 ? 15 : 40 }]}>
-                  <Text style={[styles.sectionTitle, { color: '#9CA3AF' }]}>Completados Hoy</Text>
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-                  <View style={styles.horizontalContainer}>
-                    {completedToday.map(habit => (
-                      <TouchableOpacity 
-                        key={habit.id} 
-                        style={[styles.habitCard, styles.habitCardCompleted]} 
-                        onPress={() => toggleHabit(habit)} 
-                        activeOpacity={0.8}
-                        disabled={isToggling}
-                      >
-                        <View style={[styles.iconCircle, styles.iconCircleCompleted]}>
-                          <Check size={30} color="#10B981" />
-                        </View>
-                        <Text style={[styles.habitTitle, styles.habitTitleCompleted]} numberOfLines={1}>{habit.titulo}</Text>
-                        <Text style={[styles.xpBadge, { color: '#9CA3AF' }]}>Hecho</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </ScrollView>
-              </>
+                {done.map(h => (
+                  <HabitCard key={h.id} habit={h} onPress={() => toggleHabit(h)} disabled={isToggling} />
+                ))}
+              </View>
             )}
           </>
         )}
@@ -320,41 +349,38 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF', paddingTop: Platform.OS === 'android' ? 25 : 0 },
-  scrollContent: { paddingBottom: 40 },
-  headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginTop: 10 },
-  greetingText: { fontSize: 22, fontWeight: '900', color: '#1F2937' },
-  subGreetingText: { fontSize: 14, color: '#6B7280', marginTop: 2 },
-  streakBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFEDD5', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
-  streakText: { color: '#EA580C', fontWeight: 'bold', fontSize: 16, marginLeft: 6 },
-  bannerContainer: { backgroundColor: '#F3F4F6', borderRadius: 20, marginHorizontal: 16, marginTop: 24, padding: 20, flexDirection: 'row', alignItems: 'center' },
-  bannerTextContainer: { flex: 1, paddingRight: 10 },
-  bannerTitle: { fontSize: 24, fontWeight: '900', color: '#1F2937' },
-  bannerSubtitle: { fontSize: 14, color: '#4B5563', marginTop: 4, marginBottom: 12, fontWeight: '500' },
-  progressContainer: { width: '100%' },
-  progressBarBg: { height: 8, backgroundColor: '#E5E7EB', borderRadius: 4, overflow: 'hidden' },
-  progressBarFill: { height: '100%', backgroundColor: '#3B82F6', borderRadius: 4 },
-  progressText: { fontSize: 11, color: '#6B7280', marginTop: 6, fontWeight: '600' },
-  avatarContainer: { justifyContent: 'center', alignItems: 'center' },
-  avatarCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: '#3B82F6', justifyContent: 'center', alignItems: 'center', shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, elevation: 4 },
-  avatarEmoji: { fontSize: 40 },
-  centerContent: { alignItems: 'center', justifyContent: 'center', marginTop: 60, paddingHorizontal: 20 },
-  emptyStateContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 60, paddingHorizontal: 30, backgroundColor: '#F9FAFB', marginHorizontal: 16, borderRadius: 16, paddingVertical: 40, borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed' },
-  emptyStateTitle: { fontSize: 16, fontWeight: 'bold', color: '#4B5563', marginTop: 16, marginBottom: 8 },
-  emptyStateDesc: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', lineHeight: 20 },
-  allDoneContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 30, marginHorizontal: 16, backgroundColor: '#ECFDF5', borderRadius: 16, marginTop: 20, borderWidth: 1, borderColor: '#D1FAE5' },
-  allDoneTitle: { fontSize: 18, fontWeight: 'bold', color: '#065F46', marginTop: 10 },
-  allDoneDesc: { fontSize: 14, color: '#047857', marginTop: 4 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 35, marginBottom: 15 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginRight: 4 },
-  horizontalScroll: { paddingLeft: 16 },
-  horizontalContainer: { flexDirection: 'row', paddingRight: 16 },
-  habitCard: { width: 130, padding: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 16, alignItems: 'center', marginRight: 16 },
-  habitCardCompleted: { backgroundColor: '#F9FAFB', borderColor: '#F3F4F6' },
-  iconCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  iconCircleCompleted: { backgroundColor: '#ECFDF5' },
-  emojiIcon: { fontSize: 28 },
-  habitTitle: { fontSize: 14, fontWeight: 'bold', color: '#1F2937', textAlign: 'center', marginBottom: 4 },
-  habitTitleCompleted: { color: '#9CA3AF', textDecorationLine: 'line-through' },
-  xpBadge: { fontSize: 12, fontWeight: 'bold', color: '#F97316' },
+  root:          { flex: 1, backgroundColor: C.bgBase, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
+  header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: S.sm },
+  greeting:      { fontSize: F.h2, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.5 },
+  subGreeting:   { fontSize: F.label, color: C.textMuted, marginTop: 2 },
+  banner:        { marginHorizontal: S.lg, marginTop: S.md, backgroundColor: C.bgCard, borderRadius: R.xl, borderWidth: 0.5, borderColor: C.borderDefault, padding: S.lg, flexDirection: 'row', alignItems: 'center' },
+  bannerLevel:   { fontSize: 26, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.5 },
+  bannerXP:      { fontSize: F.label, color: C.accentIndigoL, fontWeight: '600', marginBottom: 12 },
+  xpBarLabel:    { fontSize: F.caption, color: C.textMuted, fontWeight: '500', marginTop: 5 },
+  skippedNotice: { marginHorizontal: S.lg, marginTop: S.sm, backgroundColor: C.bgElevated, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: S.sm },
+  skippedText:   { fontSize: F.small, color: C.textMuted, textAlign: 'center' },
+  allDone:       { marginHorizontal: S.lg, marginTop: S.lg, backgroundColor: C.bgGreen, borderRadius: R.lg, borderWidth: 0.5, borderColor: C.bgGreenL, paddingVertical: S.lg, alignItems: 'center' },
+  allDoneTitle:  { fontSize: F.h4, fontWeight: '700', color: C.accentGreen, marginTop: S.sm },
+  allDoneDesc:   { fontSize: F.label, color: '#34D399', marginTop: 4 },
+  section:       { marginTop: 28, paddingHorizontal: S.lg },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginBottom: 12 },
+  sectionDot:    { width: 6, height: 6, borderRadius: 3 },
+  sectionTitle:  { fontSize: F.caption, fontWeight: '700', color: C.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, flex: 1 },
+  sectionCount:  { fontSize: F.small, fontWeight: '700', color: C.textMuted, backgroundColor: C.bgElevated, paddingHorizontal: S.sm, paddingVertical: 2, borderRadius: R.pill },
+  habitCard:     { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: C.borderDefault, borderLeftWidth: 3, padding: 14, marginBottom: S.sm },
+  habitCardDone: { opacity: 0.5 },
+  habitIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  habitEmoji:    { fontSize: 22 },
+  habitText:     { flex: 1 },
+  habitTitle:    { fontSize: F.body, fontWeight: '600', color: C.textPrimary },
+  habitTitleDone:{ textDecorationLine: 'line-through', color: C.textMuted },
+  habitMetaRow:  { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginTop: 3, flexWrap: 'wrap' },
+  habitMeta:     { fontSize: F.small, color: C.textMuted },
+  freqBadge:     { backgroundColor: C.bgElevated, borderRadius: R.pill, paddingHorizontal: 6, paddingVertical: 1 },
+  freqBadgeText: { fontSize: 10, color: C.textMuted, fontWeight: '600' },
+  habitRight:    { alignItems: 'flex-end', gap: S.sm },
+  xpPill:        { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: C.bgIndigo, paddingHorizontal: S.sm, paddingVertical: 3, borderRadius: R.pill, borderWidth: 0.5, borderColor: C.bgIndigoL },
+  xpText:        { fontSize: F.caption, fontWeight: '700', color: C.accentIndigoL },
+  checkCircle:   { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, borderColor: C.borderStrong, alignItems: 'center', justifyContent: 'center' },
+  checkCircleDone: { backgroundColor: C.accentGreen, borderColor: C.accentGreen },
 });

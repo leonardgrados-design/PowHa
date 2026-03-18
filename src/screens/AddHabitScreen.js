@@ -1,247 +1,320 @@
-import React, { useState } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  TextInput, 
-  TouchableOpacity, 
-  SafeAreaView, 
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  ScrollView,
-  Switch
+import React, { useState, useRef } from 'react';
+import {
+  StyleSheet, Text, View, TextInput, TouchableOpacity,
+  SafeAreaView, Alert, KeyboardAvoidingView, Platform,
+  ActivityIndicator, ScrollView, Animated,
 } from 'react-native';
-import { ArrowLeft, Dumbbell, Brain, Sun, Sunset, Moon, Clock, Bell, BellOff } from 'lucide-react-native';
+import {
+  ArrowLeft, Dumbbell, Brain, Sun, Sunset,
+  Moon, Clock, Zap, Repeat, Calendar, ChevronDown, ChevronUp,
+} from 'lucide-react-native';
 
 import { db, auth } from '../config/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { C, S, R, F, common } from '../theme';
+import { scheduleHabitNotification, scheduleCompletionReminder, requestNotificationPermissions } from '../services/NotificationService';
 
-// 1. DICCIONARIO DE HÁBITOS PREDETERMINADOS (Mejora de UX)
 const SUGERENCIAS = [
-  { titulo: "Beber 2L de agua", categoria: "cuerpo", icono: "💧" },
-  { titulo: "Leer 15 min", categoria: "mente", icono: "📚" },
-  { titulo: "Caminar 30 min", categoria: "cuerpo", icono: "🚶" },
-  { titulo: "Meditar 10 min", categoria: "mente", icono: "🧘" },
-  { titulo: "Comer fruta", categoria: "cuerpo", icono: "🍎" },
+  { titulo: 'Beber 2L de agua', categoria: 'cuerpo', icono: '💧' },
+  { titulo: 'Leer 15 min',      categoria: 'mente',  icono: '📚' },
+  { titulo: 'Caminar 30 min',   categoria: 'cuerpo', icono: '🚶' },
+  { titulo: 'Meditar 10 min',   categoria: 'mente',  icono: '🧘' },
+  { titulo: 'Comer fruta',      categoria: 'cuerpo', icono: '🍎' },
+  { titulo: 'Sin redes 1h',     categoria: 'mente',  icono: '🧠' },
 ];
 
-const ICONOS = ["🏃", "📚", "🥗", "🧘", "💧", "🚶", "🍎", "🚴", "🧠", "🦷", "🐕", "⭐", "🚭", "💻", "💤"];
+const ICONOS = ['🏃','📚','🥗','🧘','💧','🚶','🍎','🚴','🧠','🦷','🐕','⭐','🚭','💻','💤','🎯','🏋️','✍️'];
+
+const HORARIOS = [
+  { key: 'cualquiera', label: 'Libre',   Icon: Clock  },
+  { key: 'mañana',     label: 'Mañana',  Icon: Sun    },
+  { key: 'tarde',      label: 'Tarde',   Icon: Sunset },
+  { key: 'noche',      label: 'Noche',   Icon: Moon   },
+];
+
+const DIAS = [
+  { key: 1, label: 'L' }, { key: 2, label: 'M' }, { key: 3, label: 'X' },
+  { key: 4, label: 'J' }, { key: 5, label: 'V' }, { key: 6, label: 'S' },
+  { key: 0, label: 'D' },
+];
+
+const FRECUENCIAS = [
+  { key: 'diario',           label: 'Diario',          sub: 'Todos los días',      Icon: Repeat   },
+  { key: 'entre_semana',     label: 'Entre semana',     sub: 'Lun → Vie',           Icon: Calendar },
+  { key: 'fines_semana',     label: 'Fines de semana',  sub: 'Sáb y Dom',           Icon: Calendar },
+  { key: 'dias_especificos', label: 'Días específicos', sub: 'Elige cuáles',        Icon: Calendar },
+  { key: 'cada_x_dias',      label: 'Cada X días',      sub: 'Define el intervalo', Icon: Repeat   },
+];
+
+function Chip({ label, active, onPress, color = C.accentIndigo, children }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity onPress={onPress} activeOpacity={1}
+        onPressIn={() => Animated.spring(scale, { toValue: 0.93, useNativeDriver: true, tension: 200 }).start()}
+        onPressOut={() => Animated.spring(scale, { toValue: 1,   useNativeDriver: true, tension: 200 }).start()}
+        style={[common.chip, active && { backgroundColor: color + '22', borderColor: color }]}>
+        {children}
+        <Text style={[common.chipLabel, active && { color }]}>{label}</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 export default function AddHabitScreen({ navigation }) {
-  const [nuevoHabit, setNuevoHabit] = useState('');
-  const [category, setCategory] = useState('cuerpo'); 
-  const [horario, setHorario] = useState('cualquiera');
-  const [iconoSeleccionado, setIconoSeleccionado] = useState('⭐');
-  
-  // NUEVOS ESTADOS DE RIESGO
-  const [horaExacta, setHoraExacta] = useState('');
-  const [recordatorio, setRecordatorio] = useState(false);
-  
-  const [loading, setLoading] = useState(false);
+  const [titulo,       setTitulo]       = useState('');
+  const [categoria,    setCategoria]    = useState('cuerpo');
+  const [horario,      setHorario]      = useState('cualquiera');
+  const [icono,        setIcono]        = useState('⭐');
+  const [loading,      setLoading]      = useState(false);
+  const [frecuencia,   setFrecuencia]   = useState('diario');
+  const [diasSemana,   setDiasSemana]   = useState([1, 2, 3, 4, 5]);
+  const [cadaXDias,    setCadaXDias]    = useState(2);
+  const [freqExpanded, setFreqExpanded] = useState(false);
 
-  // Autocompletar formulario al tocar una sugerencia
-  const aplicarSugerencia = (sugerencia) => {
-    setNuevoHabit(sugerencia.titulo);
-    setCategory(sugerencia.categoria);
-    setIconoSeleccionado(sugerencia.icono);
+  const inputRef = useRef(null);
+  const btnScale = useRef(new Animated.Value(1)).current;
+  const canSave  = titulo.trim().length > 0 && !loading;
+
+  const aplicarSugerencia = (s) => {
+    setTitulo(s.titulo); setCategoria(s.categoria); setIcono(s.icono);
+    inputRef.current?.blur();
+  };
+  const toggleDia = (d) => setDiasSemana(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
+
+  const buildFreq = () => {
+    switch (frecuencia) {
+      case 'diario':           return { frecuencia: 'diario',           dias_semana: [0,1,2,3,4,5,6], cada_x_dias: null };
+      case 'entre_semana':     return { frecuencia: 'entre_semana',     dias_semana: [1,2,3,4,5],     cada_x_dias: null };
+      case 'fines_semana':     return { frecuencia: 'fines_semana',     dias_semana: [0,6],           cada_x_dias: null };
+      case 'dias_especificos': return { frecuencia: 'dias_especificos', dias_semana: diasSemana,      cada_x_dias: null };
+      case 'cada_x_dias':      return { frecuencia: 'cada_x_dias',      dias_semana: null,            cada_x_dias: cadaXDias };
+      default:                 return { frecuencia: 'diario',           dias_semana: [0,1,2,3,4,5,6], cada_x_dias: null };
+    }
   };
 
   const crearHabit = async () => {
-    if (nuevoHabit.trim() === "") {
-      Alert.alert("Atención", "Escribe un nombre para el hábito.");
+    if (!canSave) return;
+    if (frecuencia === 'dias_especificos' && diasSemana.length === 0) {
+      Alert.alert('Atención', 'Selecciona al menos un día.');
       return;
     }
-
-    // Validación simple de formato de hora si el usuario escribió algo
-    if (horaExacta.trim() !== "") {
-      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-      if (!timeRegex.test(horaExacta.trim())) {
-        Alert.alert("Formato Inválido", "La hora exacta debe estar en formato HH:MM (Ej. 14:30 o 08:15).");
-        return;
-      }
-    }
-
     const user = auth.currentUser;
-    if (!user) {
-      Alert.alert("Error Crítico", "No hay sesión activa.");
-      return;
-    }
+    if (!user) { Alert.alert('Error', 'No hay sesión activa.'); return; }
 
     setLoading(true);
-
     try {
-      // INYECCIÓN DE LOS NUEVOS CAMPOS A FIREBASE
-      await addDoc(collection(db, 'habitos'), {
-        user_id: user.uid,
-        titulo: nuevoHabit.trim(),
-        categoria: category,
-        icono: iconoSeleccionado,
-        horario: horario, 
-        hora_exacta: horaExacta.trim() || null, // null si no definió hora
-        recordatorio: recordatorio, // Guardamos la preferencia
-        frecuencia: 'diario',
-        valor_xp: category === 'cuerpo' ? 20 : 15,
-        activo: true,
-        created_at: serverTimestamp()
+      const freqPayload = buildFreq();
+      const docRef = await addDoc(collection(db, 'habitos'), {
+        user_id:      user.uid,
+        titulo:       titulo.trim(),
+        categoria,
+        icono,
+        horario,
+        valor_xp:     categoria === 'cuerpo' ? 20 : 15,
+        activo:       true,
+        fecha_inicio: new Date().toISOString().split('T')[0],
+        ...freqPayload,
+        created_at:   serverTimestamp(),
       });
 
-      setLoading(false);
-      setNuevoHabit('');
-      setHoraExacta('');
-      setRecordatorio(false);
-      
-      navigation.navigate('Inicio'); 
+      // Schedule notification for the new habit
+      const granted = await requestNotificationPermissions();
+      if (granted) {
+        const newHabit = {
+          id:       docRef.id,
+          titulo:   titulo.trim(),
+          icono,
+          horario,
+          valor_xp: categoria === 'cuerpo' ? 20 : 15,
+          ...freqPayload,
+        };
+        await scheduleHabitNotification(newHabit);
+        await scheduleCompletionReminder(newHabit);
+      }
 
-    } catch (error) {
+      // Reset form
+      setTitulo(''); setCategoria('cuerpo'); setHorario('cualquiera');
+      setIcono('⭐'); setFrecuencia('diario'); setDiasSemana([1,2,3,4,5]); setCadaXDias(2);
+      navigation.navigate('Inicio');
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'No se pudo guardar el hábito.');
+    } finally {
       setLoading(false);
-      console.error("Error BD:", error);
-      Alert.alert("Fallo de Base de Datos", "No se pudo guardar el hábito.");
     }
   };
 
+  const catColor  = categoria === 'cuerpo' ? C.accentTeal : C.accentPink;
+  const xpValue   = categoria === 'cuerpo' ? 20 : 15;
+  const freqLabel = FRECUENCIAS.find(f => f.key === frecuencia)?.label || 'Diario';
+  const freqSub   = frecuencia === 'dias_especificos' ? `${diasSemana.length}d/sem`
+                  : frecuencia === 'cada_x_dias'      ? `Cada ${cadaXDias} días`
+                  : FRECUENCIAS.find(f => f.key === frecuencia)?.sub;
+
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-        
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#1F2937" />
+    <SafeAreaView style={styles.root}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+
+        <View style={common.topBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={common.backBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <ArrowLeft size={22} color={C.textSecondary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Nuevo hábito</Text>
-          <View style={{ width: 40 }} />
+          <Text style={common.topBarTitle}>Nuevo hábito</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: R.pill, borderWidth: 0.5, borderColor: catColor + '60', backgroundColor: catColor + '18' }}>
+            <Zap size={11} color={catColor} />
+            <Text style={{ fontSize: F.small, fontWeight: '700', color: catColor }}>+{xpValue} XP</Text>
+          </View>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          
-          {/* SECCIÓN DE SUGERENCIAS RÁPIDAS */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Sugerencias Rápidas</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sugerenciasContainer}>
-              {SUGERENCIAS.map((sug, index) => (
-                <TouchableOpacity 
-                  key={index} 
-                  style={styles.sugerenciaBadge}
-                  onPress={() => aplicarSugerencia(sug)}
-                >
-                  <Text style={styles.sugerenciaEmoji}>{sug.icono}</Text>
-                  <Text style={styles.sugerenciaText}>{sug.titulo}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: S.lg, paddingTop: S.lg }}
+          keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+          {/* Suggestions */}
+          <Text style={common.sectionLabel}>Sugerencias rápidas</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: S.sm, marginBottom: S.lg }}>
+            {SUGERENCIAS.map((s, i) => (
+              <TouchableOpacity key={i} activeOpacity={0.7}
+                style={[styles.suggChip, titulo === s.titulo && { borderColor: catColor, backgroundColor: catColor + '18' }]}
+                onPress={() => aplicarSugerencia(s)}>
+                <Text style={{ fontSize: 15 }}>{s.icono}</Text>
+                <Text style={[styles.suggText, titulo === s.titulo && { color: C.textPrimary }]}>{s.titulo}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Name */}
+          <Text style={common.sectionLabel}>Nombre del hábito</Text>
+          <View style={[common.inputWrap, { marginBottom: 28 }]}>
+            <Text style={{ fontSize: 22 }}>{icono}</Text>
+            <TextInput ref={inputRef} style={styles.input} placeholder="Ej. Correr 5 km"
+              placeholderTextColor={C.textMuted} value={titulo} onChangeText={setTitulo}
+              maxLength={40} returnKeyType="done" />
+            {titulo.length > 0 && <Text style={{ fontSize: F.caption, color: C.textMuted }}>{titulo.length}/40</Text>}
           </View>
 
-          <TextInput
-            placeholder="O escribe el tuyo (Ej. Correr 2 km)"
-            style={styles.input}
-            value={nuevoHabit}
-            onChangeText={setNuevoHabit}
-            maxLength={40}
-          />
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Categoría</Text>
-            <View style={styles.categoryContainer}>
-              <TouchableOpacity 
-                style={[styles.categoryBtn, category === 'cuerpo' && styles.categoryBtnActive]}
-                onPress={() => setCategory('cuerpo')}
-              >
-                <Dumbbell size={20} color={category === 'cuerpo' ? '#FFFFFF' : '#4B5563'} />
-                <Text style={[styles.categoryText, category === 'cuerpo' && styles.categoryTextActive]}>Físico</Text>
+          {/* Category */}
+          <Text style={common.sectionLabel}>Categoría</Text>
+          <View style={{ flexDirection: 'row', gap: S.sm, marginBottom: 28 }}>
+            {[{ key: 'cuerpo', label: 'Físico', color: C.accentTeal, Icon: Dumbbell },
+              { key: 'mente',  label: 'Mental', color: C.accentPink, Icon: Brain   }].map(({ key, label, color, Icon }) => (
+              <TouchableOpacity key={key} activeOpacity={0.8} onPress={() => setCategoria(key)}
+                style={[styles.catBtn, categoria === key && { borderColor: color, backgroundColor: color + '18' }]}>
+                <Icon size={18} color={categoria === key ? color : C.textMuted} />
+                <Text style={[styles.catLabel, categoria === key && { color }]}>{label}</Text>
+                {categoria === key && <View style={[styles.catDot, { backgroundColor: color }]} />}
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.categoryBtn, category === 'mente' && styles.categoryBtnActive]}
-                onPress={() => setCategory('mente')}
-              >
-                <Brain size={20} color={category === 'mente' ? '#FFFFFF' : '#4B5563'} />
-                <Text style={[styles.categoryText, category === 'mente' && styles.categoryTextActive]}>Mental</Text>
-              </TouchableOpacity>
-            </View>
+            ))}
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Momento del día</Text>
-            <View style={styles.timeGrid}>
-              <TouchableOpacity style={[styles.timeBtn, horario === 'cualquiera' && styles.timeBtnActive]} onPress={() => setHorario('cualquiera')}>
-                <Clock size={18} color={horario === 'cualquiera' ? '#FFFFFF' : '#6B7280'} />
-                <Text style={[styles.timeText, horario === 'cualquiera' && styles.timeTextActive]}>Libre</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.timeBtn, horario === 'mañana' && styles.timeBtnActive]} onPress={() => setHorario('mañana')}>
-                <Sun size={18} color={horario === 'mañana' ? '#FFFFFF' : '#6B7280'} />
-                <Text style={[styles.timeText, horario === 'mañana' && styles.timeTextActive]}>Mañana</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.timeBtn, horario === 'tarde' && styles.timeBtnActive]} onPress={() => setHorario('tarde')}>
-                <Sunset size={18} color={horario === 'tarde' ? '#FFFFFF' : '#6B7280'} />
-                <Text style={[styles.timeText, horario === 'tarde' && styles.timeTextActive]}>Tarde</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.timeBtn, horario === 'noche' && styles.timeBtnActive]} onPress={() => setHorario('noche')}>
-                <Moon size={18} color={horario === 'noche' ? '#FFFFFF' : '#6B7280'} />
-                <Text style={[styles.timeText, horario === 'noche' && styles.timeTextActive]}>Noche</Text>
-              </TouchableOpacity>
-            </View>
+          {/* Schedule */}
+          <Text style={common.sectionLabel}>Momento del día</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: S.sm, marginBottom: 28 }}>
+            {HORARIOS.map(({ key, label, Icon }) => (
+              <Chip key={key} label={label} active={horario === key} onPress={() => setHorario(key)} color={C.accentIndigo}>
+                <Icon size={14} color={horario === key ? C.accentIndigo : C.textMuted} style={{ marginRight: 4 }} />
+              </Chip>
+            ))}
           </View>
 
-          {/* NUEVA SECCIÓN DE HORA Y ALERTAS */}
-          <View style={styles.advancedGroup}>
-            <View style={{ flex: 1, marginRight: 15 }}>
-              <Text style={styles.label}>Hora Específica (Opcional)</Text>
-              <TextInput
-                placeholder="HH:MM (Ej. 14:30)"
-                style={styles.timeInput}
-                value={horaExacta}
-                onChangeText={setHoraExacta}
-                keyboardType="numbers-and-punctuation"
-                maxLength={5}
-              />
-            </View>
-
-            <View style={styles.switchContainer}>
-              <Text style={styles.label}>Recordatorio</Text>
-              <View style={styles.switchRow}>
-                {recordatorio ? <Bell size={20} color="#3B82F6" /> : <BellOff size={20} color="#9CA3AF" />}
-                <Switch
-                  value={recordatorio}
-                  onValueChange={setRecordatorio}
-                  trackColor={{ false: "#E5E7EB", true: "#BFDBFE" }}
-                  thumbColor={recordatorio ? "#3B82F6" : "#F3F4F6"}
-                  style={{ transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }], marginLeft: 8 }}
-                />
+          {/* Repetition */}
+          <Text style={common.sectionLabel}>Repetición</Text>
+          <TouchableOpacity style={styles.freqHeader} onPress={() => setFreqExpanded(v => !v)} activeOpacity={0.8}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={[styles.freqIcon, { backgroundColor: C.accentIndigo + '20' }]}>
+                <Repeat size={16} color={C.accentIndigo} />
+              </View>
+              <View>
+                <Text style={styles.freqHeaderTitle}>{freqLabel}</Text>
+                <Text style={styles.freqHeaderSub}>{freqSub}</Text>
               </View>
             </View>
-          </View>
+            {freqExpanded ? <ChevronUp size={18} color={C.textMuted} /> : <ChevronDown size={18} color={C.textMuted} />}
+          </TouchableOpacity>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Elige un icono</Text>
-            <View style={styles.iconosGrid}>
-              {ICONOS.map((icon, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => setIconoSeleccionado(icon)}
-                  style={[styles.iconoBtn, iconoSeleccionado === icon && styles.iconoBtnActive]}
-                >
-                  <Text style={{ fontSize: 28 }}>{icon}</Text>
+          {freqExpanded && (
+            <View style={styles.freqPanel}>
+              {FRECUENCIAS.map(({ key, label, sub, Icon }) => (
+                <TouchableOpacity key={key} activeOpacity={0.8} onPress={() => setFrecuencia(key)}
+                  style={[styles.freqOption, frecuencia === key && { backgroundColor: C.accentIndigo + '12' }]}>
+                  <View style={[styles.freqOptionIcon, frecuencia === key && { backgroundColor: C.accentIndigo + '30' }]}>
+                    <Icon size={15} color={frecuencia === key ? C.accentIndigoL : C.textMuted} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.freqOptionLabel, frecuencia === key && { color: C.accentIndigoL }]}>{label}</Text>
+                    <Text style={styles.freqOptionSub}>{sub}</Text>
+                  </View>
+                  {frecuencia === key && (
+                    <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: C.accentIndigo, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>✓</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               ))}
+
+              {frecuencia === 'dias_especificos' && (
+                <View style={styles.extraPanel}>
+                  <Text style={styles.extraLabel}>Elige los días</Text>
+                  <View style={{ flexDirection: 'row', gap: S.sm, justifyContent: 'center' }}>
+                    {DIAS.map(({ key, label }) => (
+                      <TouchableOpacity key={key} activeOpacity={0.8} onPress={() => toggleDia(key)}
+                        style={[styles.dayBtn, diasSemana.includes(key) && { backgroundColor: C.accentIndigo, borderColor: C.accentIndigo }]}>
+                        <Text style={[styles.dayBtnText, diasSemana.includes(key) && { color: '#fff', fontWeight: '700' }]}>{label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {frecuencia === 'cada_x_dias' && (
+                <View style={styles.extraPanel}>
+                  <Text style={styles.extraLabel}>Cada cuántos días</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: S.lg }}>
+                    <TouchableOpacity style={styles.stepBtn} onPress={() => setCadaXDias(v => Math.max(1, v - 1))}>
+                      <Text style={styles.stepBtnText}>−</Text>
+                    </TouchableOpacity>
+                    <View style={{ alignItems: 'center', minWidth: 60 }}>
+                      <Text style={styles.stepValue}>{cadaXDias}</Text>
+                      <Text style={{ fontSize: F.small, color: C.textMuted, marginTop: -2 }}>días</Text>
+                    </View>
+                    <TouchableOpacity style={styles.stepBtn} onPress={() => setCadaXDias(v => Math.min(30, v + 1))}>
+                      <Text style={styles.stepBtnText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
+          )}
+
+          {/* Icons */}
+          <Text style={[common.sectionLabel, { marginTop: 28 }]}>Ícono</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: S.sm, marginBottom: S.sm }}>
+            {ICONOS.map((ic, i) => (
+              <TouchableOpacity key={i} onPress={() => setIcono(ic)} activeOpacity={0.7}
+                style={[styles.iconBtn, icono === ic && { borderColor: catColor, backgroundColor: catColor + '18' }]}>
+                <Text style={{ fontSize: 24 }}>{ic}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-          
-          <View style={{ height: 40 }} />
+          <View style={{ height: 32 }} />
         </ScrollView>
 
-        <View style={styles.footer}>
-          <TouchableOpacity 
-            style={[styles.botonCrear, (!nuevoHabit.trim() || loading) && styles.botonCrearDisabled]} 
-            onPress={crearHabit}
-            disabled={!nuevoHabit.trim() || loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.textoBoton}>+ Guardar hábito</Text>
-            )}
-          </TouchableOpacity>
+        {/* Save */}
+        <View style={{ paddingHorizontal: S.lg, paddingVertical: S.md, borderTopWidth: 0.5, borderTopColor: C.borderDefault, backgroundColor: C.bgBase }}>
+          <Animated.View style={{ transform: [{ scale: btnScale }] }}>
+            <TouchableOpacity onPress={crearHabit} disabled={!canSave} activeOpacity={1}
+              onPressIn={() => Animated.spring(btnScale, { toValue: 0.96, useNativeDriver: true, tension: 200 }).start()}
+              onPressOut={() => Animated.spring(btnScale, { toValue: 1,   useNativeDriver: true, tension: 200 }).start()}
+              style={[common.primaryBtn, { backgroundColor: canSave ? C.accentIndigo : C.bgElevated }]}>
+              {loading ? <ActivityIndicator color="#fff" /> : (
+                <>
+                  <Zap size={18} color={canSave ? '#fff' : C.textMuted} fill={canSave ? '#fff' : 'none'} />
+                  <Text style={[common.primaryBtnText, !canSave && { color: C.textMuted }]}>Guardar hábito</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -249,46 +322,28 @@ export default function AddHabitScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  backButton: { padding: 8 },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#1F2937' },
-  content: { flex: 1, padding: 20 },
-  
-  // Sugerencias
-  sugerenciasContainer: { flexDirection: 'row', paddingBottom: 10, marginHorizontal: -20, paddingHorizontal: 20 },
-  sugerenciaBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, marginRight: 10, borderWidth: 1, borderColor: '#E5E7EB' },
-  sugerenciaEmoji: { fontSize: 16, marginRight: 6 },
-  sugerenciaText: { fontSize: 14, color: '#4B5563', fontWeight: '600' },
-
-  input: { borderWidth: 1, borderColor: "#E5E7EB", width: "100%", padding: 16, borderRadius: 12, marginBottom: 25, fontSize: 16, backgroundColor: '#F9FAFB', color: '#1F2937', fontWeight: '500' },
-  inputGroup: { marginBottom: 25 },
-  label: { fontSize: 13, fontWeight: 'bold', color: '#6B7280', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  
-  categoryContainer: { flexDirection: 'row', gap: 10 },
-  categoryBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, backgroundColor: '#F9FAFB', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' },
-  categoryBtnActive: { backgroundColor: '#1F2937', borderColor: '#1F2937' },
-  categoryText: { fontSize: 16, fontWeight: 'bold', color: '#4B5563' },
-  categoryTextActive: { color: '#FFFFFF' },
-  
-  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  timeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 20 },
-  timeBtnActive: { backgroundColor: '#3B82F6', borderColor: '#3B82F6' },
-  timeText: { fontSize: 14, fontWeight: 'bold', color: '#4B5563' },
-  timeTextActive: { color: '#FFFFFF' },
-
-  // Avanzado
-  advancedGroup: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25, backgroundColor: '#F8FAFC', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#F1F5F9' },
-  timeInput: { backgroundColor: 'white', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, fontSize: 16, textAlign: 'center', fontWeight: '500', color: '#1F2937' },
-  switchContainer: { alignItems: 'center', justifyContent: 'center' },
-  switchRow: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
-
-  iconosGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 15 },
-  iconoBtn: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#E5E7EB' },
-  iconoBtnActive: { borderColor: '#10B981', backgroundColor: '#ECFDF5' },
-  
-  footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#eee', backgroundColor: 'white' },
-  botonCrear: { backgroundColor: "#10B981", padding: 16, borderRadius: 16, alignItems: 'center', shadowColor: "#10B981", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, elevation: 5 },
-  botonCrearDisabled: { backgroundColor: "#A7F3D0", shadowOpacity: 0 },
-  textoBoton: { color: "white", fontWeight: "bold", fontSize: 18 }
+  root:            { flex: 1, backgroundColor: C.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
+  input:           { flex: 1, fontSize: F.body, color: C.textPrimary, fontWeight: '500' },
+  suggChip:        { flexDirection: 'row', alignItems: 'center', gap: S.sm, backgroundColor: C.bgCard, borderWidth: 0.5, borderColor: C.borderStrong, paddingHorizontal: 14, paddingVertical: 9, borderRadius: R.pill },
+  suggText:        { fontSize: F.label, color: C.textSecondary, fontWeight: '500' },
+  catBtn:          { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: S.sm, backgroundColor: C.bgCard, borderWidth: 0.5, borderColor: C.borderStrong, borderRadius: R.lg, paddingVertical: S.md },
+  catLabel:        { fontSize: F.body, fontWeight: '700', color: C.textMuted },
+  catDot:          { position: 'absolute', bottom: 8, width: 5, height: 5, borderRadius: 3 },
+  freqHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.bgCard, borderWidth: 0.5, borderColor: C.borderStrong, borderRadius: R.lg, padding: 14, marginBottom: S.sm },
+  freqIcon:        { width: 36, height: 36, borderRadius: R.md, alignItems: 'center', justifyContent: 'center' },
+  freqHeaderTitle: { fontSize: F.body, fontWeight: '600', color: C.textPrimary },
+  freqHeaderSub:   { fontSize: F.small, color: C.textMuted, marginTop: 1 },
+  freqPanel:       { backgroundColor: C.bgCard, borderWidth: 0.5, borderColor: C.borderStrong, borderRadius: R.lg, overflow: 'hidden', marginBottom: 28 },
+  freqOption:      { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderBottomWidth: 0.5, borderBottomColor: C.borderDefault },
+  freqOptionIcon:  { width: 32, height: 32, borderRadius: S.sm, backgroundColor: C.bgElevated, alignItems: 'center', justifyContent: 'center' },
+  freqOptionLabel: { fontSize: F.label, fontWeight: '600', color: C.textSecondary },
+  freqOptionSub:   { fontSize: F.small, color: C.textMuted, marginTop: 1 },
+  extraPanel:      { padding: 14, borderTopWidth: 0.5, borderTopColor: C.borderDefault },
+  extraLabel:      { fontSize: F.small, color: C.textMuted, fontWeight: '600', marginBottom: S.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
+  dayBtn:          { width: 38, height: 38, borderRadius: R.md, backgroundColor: C.bgElevated, borderWidth: 0.5, borderColor: C.borderStrong, alignItems: 'center', justifyContent: 'center' },
+  dayBtnText:      { fontSize: F.label, fontWeight: '600', color: C.textMuted },
+  stepBtn:         { width: 44, height: 44, borderRadius: 12, backgroundColor: C.bgElevated, borderWidth: 0.5, borderColor: C.borderStrong, alignItems: 'center', justifyContent: 'center' },
+  stepBtnText:     { fontSize: 22, color: C.accentIndigoL, fontWeight: '300', lineHeight: 26 },
+  stepValue:       { fontSize: 32, fontWeight: '800', color: C.textPrimary, letterSpacing: -1 },
+  iconBtn:         { width: 54, height: 54, borderRadius: R.lg, backgroundColor: C.bgCard, borderWidth: 0.5, borderColor: C.borderStrong, alignItems: 'center', justifyContent: 'center' },
 });

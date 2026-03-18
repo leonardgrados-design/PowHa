@@ -1,314 +1,231 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator } from "react-native";
-import { UserCircle, Flame, TrendingUp, Target, Activity } from "lucide-react-native";
-import { LineChart } from "react-native-chart-kit";
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Animated, Platform, SafeAreaView, StatusBar } from 'react-native';
+import { Flame, TrendingUp, Target, Activity, Zap, Award } from 'lucide-react-native';
 
-// Importaciones de Firebase
 import { auth, db } from '../config/firebase';
 import { doc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import { C, S, R, F, common } from '../theme';
 
-const screenWidth = Dimensions.get("window").width;
+function StatCard({ label, value, sub, color = C.accentIndigo, icon }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => { Animated.spring(anim, { toValue: 1, useNativeDriver: true, tension: 60, friction: 8, delay: 100 }).start(); }, []);
+  return (
+    <Animated.View style={[styles.statCard, { transform: [{ scale: anim }] }]}>
+      <View style={[styles.statIconWrap, { backgroundColor: color + '20' }]}>{icon}</View>
+      <Text style={[styles.statValue, { color }]}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+      {sub ? <Text style={styles.statSub}>{sub}</Text> : null}
+    </Animated.View>
+  );
+}
+
+function ActivityBars({ data, labels }) {
+  const max = Math.max(...data, 1);
+  return (
+    <View style={styles.barsContainer}>
+      {data.map((val, i) => {
+        const isToday = i === data.length - 1;
+        return (
+          <View key={i} style={styles.barCol}>
+            <View style={styles.barTrack}>
+              <View style={[styles.barFill, { height: `${Math.max((val / max) * 100, val > 0 ? 8 : 0)}%`, backgroundColor: isToday ? C.accentIndigo : val > 0 ? C.accentIndigoL + 'AA' : C.bgElevated }]} />
+            </View>
+            {val > 0 && <Text style={[styles.barCount, isToday && { color: C.accentIndigoL }]}>{val}</Text>}
+            <Text style={[styles.barLabel, isToday && { color: C.textSecondary }]}>{labels[i]}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function StreakRow({ streak }) {
+  const flames = Math.min(streak, 7);
+  return (
+    <View style={{ flexDirection: 'row', gap: S.sm, alignItems: 'center' }}>
+      {Array.from({ length: 7 }).map((_, i) => (
+        <Flame key={i} size={22} color={i < flames ? C.accentAmber : C.bgElevated} fill={i < flames ? C.accentAmber : C.bgElevated} />
+      ))}
+      {streak > 7 && <Text style={{ fontSize: F.label, color: C.accentAmber, fontWeight: '700', marginLeft: 4 }}>+{streak - 7}</Text>}
+    </View>
+  );
+}
 
 export default function StatusScreen() {
-  const [loading, setLoading] = useState(true);
-  const [userData, setUserData] = useState({ xp_total: 0, nivel: 1, racha_actual: 0 });
-  const [chartData, setChartData] = useState({
-    labels: ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"], 
-    data: [0, 0, 0, 0, 0, 0, 0] 
-  });
-  const [stats, setStats] = useState({
-    totalHabitos: 0,
-    completadosEsteMes: 0,
-  });
+  const [loading,   setLoading]   = useState(true);
+  const [userData,  setUserData]  = useState({ xp_total: 0, nivel: 1, racha_actual: 0 });
+  const [chartData, setChartData] = useState({ labels: [], data: [] });
+  const [stats,     setStats]     = useState({ totalHabitos: 0, completadosReciente: 0 });
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const user = auth.currentUser;
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    if (!user) { setLoading(false); return; }
 
-    const unsubscribeUser = onSnapshot(doc(db, 'usuarios', user.uid), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        
-        const today = new Date();
-        const todayStr = today.toLocaleDateString('en-CA');
-        
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toLocaleDateString('en-CA');
-        
-        let displayStreak = data.racha_actual || 0;
-        const ultimaFecha = data.ultima_fecha_racha;
-
-        if (ultimaFecha && ultimaFecha !== todayStr && ultimaFecha !== yesterdayStr) {
-            displayStreak = 0; 
-        }
-
-        setUserData({
-          ...data,
-          racha_actual: displayStreak 
-        });
-      }
-    }, (error) => {
-      // PARCHE CRÍTICO: Evitar crash al cerrar sesión
-      if (error.code === 'permission-denied') return;
-      console.error("Error en Snapshot de Status:", error);
-    });
+    const unsubUser = onSnapshot(doc(db, 'usuarios', user.uid), (snap) => {
+      if (!snap.exists()) return;
+      const d = snap.data();
+      const today = new Date().toLocaleDateString('en-CA');
+      const yStr  = (() => { const y = new Date(); y.setDate(y.getDate() - 1); return y.toLocaleDateString('en-CA'); })();
+      let streak  = d.racha_actual || 0;
+      if (d.ultima_fecha_racha && d.ultima_fecha_racha !== today && d.ultima_fecha_racha !== yStr) streak = 0;
+      setUserData({ ...d, racha_actual: streak });
+    }, (e) => { if (e.code !== 'permission-denied') console.error(e); });
 
     const fetchAnalytics = async () => {
       try {
         const today = new Date();
-        const sevenDaysAgo = new Date(today);
-        sevenDaysAgo.setDate(today.getDate() - 6); 
-        
-        const startDateStr = sevenDaysAgo.toISOString().split('T')[0];
-
-        const qRegistros = query(
-          collection(db, 'registros_habito'),
-          where('user_id', '==', user.uid),
-          where('fecha_completado', '>=', startDateStr)
-        );
-
-        const querySnapshot = await getDocs(qRegistros);
-        
-        const activityByDate = {};
-        let completadosMes = 0;
-        
-        const daysLabels = [];
-        
+        const labels = []; const activityMap = {};
         for (let i = 6; i >= 0; i--) {
-            const d = new Date(today);
-            d.setDate(today.getDate() - i);
-            const dateStr = d.toISOString().split('T')[0];
-            const shortDay = d.toLocaleDateString('es-ES', { weekday: 'short' }); 
-            
-            activityByDate[dateStr] = 0;
-            daysLabels.push(shortDay.charAt(0).toUpperCase() + shortDay.slice(1));
+          const d = new Date(today); d.setDate(today.getDate() - i);
+          const dateStr = d.toISOString().split('T')[0];
+          const short   = d.toLocaleDateString('es-MX', { weekday: 'short' });
+          activityMap[dateStr] = 0;
+          labels.push(short.charAt(0).toUpperCase() + short.slice(1, 3));
         }
-
-        querySnapshot.forEach((documentSnapshot) => {
-          const data = documentSnapshot.data();
-          const fecha = data.fecha_completado;
-          
-          if (activityByDate[fecha] !== undefined) {
-              activityByDate[fecha] += 1; 
-          }
-          
-          completadosMes++; 
-        });
-
-        const dataValues = Object.values(activityByDate);
-
-        setChartData({
-            labels: daysLabels,
-            data: dataValues.some(val => val > 0) ? dataValues : [0,0,0,0,0,0,0] 
-        });
-
-        const qHabitos = query(collection(db, 'habitos'), where('user_id', '==', user.uid), where('activo', '==', true));
-        const habitosSnap = await getDocs(qHabitos);
-        
-        setStats({
-            totalHabitos: habitosSnap.size,
-            completadosEsteMes: completadosMes
-        });
-
-      } catch (error) {
-        if (error.code === 'permission-denied') return;
-      } finally {
-        setLoading(false);
-      }
+        const startDate   = Object.keys(activityMap)[0];
+        const recordsSnap = await getDocs(query(collection(db, 'registros_habito'), where('user_id', '==', user.uid), where('fecha_completado', '>=', startDate)));
+        recordsSnap.forEach(d => { const f = d.data().fecha_completado; if (activityMap[f] !== undefined) activityMap[f]++; });
+        const habitsSnap  = await getDocs(query(collection(db, 'habitos'), where('user_id', '==', user.uid), where('activo', '==', true)));
+        setChartData({ labels, data: Object.values(activityMap) });
+        setStats({ totalHabitos: habitsSnap.size, completadosReciente: recordsSnap.size });
+      } catch (e) { if (e.code !== 'permission-denied') console.error(e); }
+      finally     { setLoading(false); Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start(); }
     };
 
     fetchAnalytics();
-
-    return () => unsubscribeUser();
+    return () => unsubUser();
   }, []);
+
+  const xp         = userData.xp_total || 0;
+  const nivel      = userData.nivel || Math.floor(xp / 50) + 1;
+  const xpPct      = (xp % 50) / 50;
+  const levelEmoji = nivel >= 10 ? '👑' : nivel >= 5 ? '😎' : nivel >= 3 ? '🔥' : '😐';
+  const hasActivity = (chartData.data || []).some(v => v > 0);
+  const tendencia  = stats.completadosReciente > 5 ? '¡Excelente ritmo! 🔥' : stats.completadosReciente > 0 ? 'Sigue así 💪' : 'Empieza hoy 🎯';
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#3B82F6" />
-        <Text style={{ marginTop: 10, color: '#6B7280' }}>Calculando métricas...</Text>
-      </View>
+      <SafeAreaView style={[styles.root, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={C.accentIndigo} />
+        <Text style={{ marginTop: 12, color: C.textMuted, fontSize: F.label }}>Calculando métricas...</Text>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bgBase} />
+      <Animated.ScrollView style={{ opacity: fadeAnim }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-      <Text style={styles.title}>Tu Progreso</Text>
+        <Text style={styles.pageTitle}>Tu Progreso</Text>
 
-      <View style={styles.avatarCard}>
-        <UserCircle size={90} color="#3B82F6" strokeWidth={1.5} />
-        <Text style={styles.avatarText}>
-          Nivel Actual: {userData?.nivel || 1}
-        </Text>
-        <Text style={styles.xpText}>
-          {userData?.xp_total || 0} XP Acumulada
-        </Text>
-      </View>
-
-
-      <View style={styles.card}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-            <Flame size={24} color="#F97316" fill={userData?.racha_actual > 0 ? "#F97316" : "transparent"} />
-            <Text style={styles.cardTitle}>Racha de Constancia</Text>
-        </View>
-        <Text style={styles.bigText}>{userData?.racha_actual || 0} días</Text>
-        <Text style={styles.smallText}>
-          {userData?.racha_actual > 0 
-            ? "¡Mantén el fuego vivo! Completa un hábito hoy." 
-            : "Racha inactiva. Inicia hoy para empezar a contar."}
-        </Text>
-      </View>
-
-      <View style={styles.chartContainer}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
-            <TrendingUp size={20} color="#10B981" />
-            <Text style={styles.chartTitle}>Actividad (Últimos 7 días)</Text>
-        </View>
-
-        {Math.max(...(chartData?.data || [0])) === 0 ? (
-            <View style={{ height: 220, justifyContent: 'center', alignItems: 'center' }}>
-                <Activity size={40} color="#475569" />
-                <Text style={{ color: '#94A3B8', marginTop: 10 }}>Aún no hay actividad reciente.</Text>
+        {/* Hero */}
+        <View style={[common.card, { flexDirection: 'row', alignItems: 'center', marginBottom: S.md }]}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <View style={[common.levelBadge, { alignSelf: 'flex-start', marginBottom: S.sm, flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+              <Award size={12} color={C.accentIndigoL} />
+              <Text style={common.levelBadgeText}>Nivel {nivel}</Text>
             </View>
-        ) : (
-            <LineChart
-            data={{
-                labels: chartData.labels,
-                datasets: [
-                {
-                    data: chartData.data
-                }
-                ]
-            }}
-            width={screenWidth - 70} 
-            height={220}
-            yAxisSuffix=""
-            yAxisInterval={1} 
-            fromZero={true}
-            chartConfig={{
-                backgroundColor: "#1E293B",
-                backgroundGradientFrom: "#1E293B",
-                backgroundGradientTo: "#1E293B",
-                decimalPlaces: 0, 
-                color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(203, 213, 245, ${opacity})`,
-                style: { borderRadius: 16 },
-                propsForDots: {
-                    r: "6",
-                    strokeWidth: "2",
-                    stroke: "#2563EB"
-                }
-            }}
-            bezier
-            style={{ marginVertical: 8, borderRadius: 16 }}
-            />
-        )}
-      </View>
-
-      <View style={styles.card}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-            <Target size={24} color="#8B5CF6" />
-            <Text style={styles.cardTitle}>Análisis General</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', marginBottom: 12 }}>
+              <Text style={styles.heroXPNum}>{xp}</Text>
+              <Text style={styles.heroXPSub}> XP</Text>
+            </View>
+            <View style={common.xpBarBg}>
+              <View style={[common.xpBarFill, { width: `${xpPct * 100}%` }]} />
+            </View>
+            <Text style={{ fontSize: F.caption, color: C.textMuted, marginTop: 5 }}>{xp % 50}/50 XP → Nivel {nivel + 1}</Text>
+          </View>
+          <View style={[common.avatarCircle, { width: 72, height: 72, borderRadius: R.lg }]}>
+            <Text style={{ fontSize: 36 }}>{levelEmoji}</Text>
+          </View>
         </View>
 
-        <Text style={styles.info}>
-          Hábitos activos en seguimiento: <Text style={{fontWeight: 'bold', color: 'white'}}>{stats.totalHabitos}</Text>
-        </Text>
+        {/* Stat cards */}
+        <View style={{ flexDirection: 'row', gap: S.sm, marginBottom: S.md }}>
+          <StatCard label="Racha" value={`${userData.racha_actual || 0}`} sub="días" color={C.accentAmber}
+            icon={<Flame size={16} color={C.accentAmber} fill={userData.racha_actual > 0 ? C.accentAmber : 'none'} />} />
+          <StatCard label="Hábitos" value={`${stats.totalHabitos}`} sub="activos" color={C.accentTeal}
+            icon={<Target size={16} color={C.accentTeal} />} />
+          <StatCard label="Semana" value={`${stats.completadosReciente}`} sub="completados" color={C.accentGreen}
+            icon={<TrendingUp size={16} color={C.accentGreen} />} />
+        </View>
 
-        <Text style={styles.info}>
-          Completados recientemente: <Text style={{fontWeight: 'bold', color: 'white'}}>{stats.completadosEsteMes}</Text>
-        </Text>
+        {/* Streak flames */}
+        {(userData.racha_actual || 0) > 0 && (
+          <View style={[common.card, { marginBottom: S.md }]}>
+            <View style={styles.cardHeader}>
+              <Flame size={18} color={C.accentAmber} fill={C.accentAmber} />
+              <Text style={styles.cardTitle}>Racha de constancia</Text>
+            </View>
+            <StreakRow streak={userData.racha_actual || 0} />
+            <Text style={styles.cardSub}>{userData.racha_actual >= 7 ? '¡Una semana perfecta! Sigue así.' : '¡Mantén el fuego vivo! Completa un hábito hoy.'}</Text>
+          </View>
+        )}
 
-        <Text style={styles.info}>
-          Tendencia: {stats.completadosEsteMes > 5 ? '¡Excelente ritmo! 🔥' : 'Necesitas enfocarte más. 🎯'}
-        </Text>
-      </View>
+        {/* Activity chart */}
+        <View style={[common.card, { marginBottom: S.md }]}>
+          <View style={styles.cardHeader}>
+            <TrendingUp size={18} color={C.accentGreen} />
+            <Text style={styles.cardTitle}>Actividad — últimos 7 días</Text>
+          </View>
+          {hasActivity ? <ActivityBars data={chartData.data} labels={chartData.labels} /> : (
+            <View style={{ height: 120, alignItems: 'center', justifyContent: 'center', gap: S.sm }}>
+              <Activity size={32} color={C.textMuted} strokeWidth={1.5} />
+              <Text style={{ fontSize: F.label, color: C.textMuted }}>Aún no hay actividad reciente.</Text>
+            </View>
+          )}
+        </View>
 
-      <View style={{ height: 40 }} />
-    </ScrollView>
+        {/* Analysis */}
+        <View style={[common.card, { marginBottom: S.md }]}>
+          <View style={styles.cardHeader}>
+            <Zap size={18} color={C.accentIndigo} />
+            <Text style={styles.cardTitle}>Análisis general</Text>
+          </View>
+          {[
+            { label: 'Hábitos en seguimiento', value: stats.totalHabitos,       color: C.accentTeal    },
+            { label: 'Completados esta semana', value: stats.completadosReciente, color: C.accentGreen  },
+            { label: 'XP acumulada',            value: xp,                       color: C.accentIndigoL },
+            { label: 'Tendencia',               value: tendencia,                color: C.textPrimary   },
+          ].map((row, i, arr) => (
+            <React.Fragment key={i}>
+              <View style={styles.analysisRow}>
+                <Text style={styles.analysisLabel}>{row.label}</Text>
+                <Text style={[styles.analysisValue, { color: row.color }]}>{row.value}</Text>
+              </View>
+              {i < arr.length - 1 && <View style={common.divider} />}
+            </React.Fragment>
+          ))}
+        </View>
+
+        <View style={{ height: 40 }} />
+      </Animated.ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0F172A", 
-    paddingTop: 60,
-    paddingHorizontal: 20
-  },
-  title: {
-    fontSize: 28,
-    color: "white",
-    fontWeight: "bold",
-    marginBottom: 20
-  },
-  avatarCard: {
-    backgroundColor: "#1E293B",
-    padding: 25,
-    borderRadius: 16,
-    alignItems: "center",
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#334155'
-  },
-  avatarText: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginTop: 10
-  },
-  xpText: {
-      color: "#3B82F6",
-      fontWeight: "bold",
-      marginTop: 5
-  },
-  card: {
-    backgroundColor: "#1E293B",
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#334155'
-  },
-  cardTitle: {
-    color: "#CBD5F5",
-    fontSize: 16,
-    fontWeight: "bold",
-    marginLeft: 8
-  },
-  bigText: {
-    color: "white",
-    fontSize: 32,
-    fontWeight: "black",
-    marginTop: 5
-  },
-  smallText: {
-    color: "#94A3B8",
-    marginTop: 8,
-    lineHeight: 20
-  },
-  info: {
-    color: "#CBD5F5",
-    marginTop: 10,
-    fontSize: 15
-  },
-  chartContainer: {
-    backgroundColor: "#1E293B",
-    padding: 15,
-    borderRadius: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#334155'
-  },
-  chartTitle: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-    marginLeft: 8
-  }
+  root:         { flex: 1, backgroundColor: C.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
+  scroll:       { paddingHorizontal: S.lg, paddingBottom: 48, paddingTop: S.lg },
+  pageTitle:    { fontSize: F.h1, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.5, marginBottom: S.lg },
+  heroXPNum:    { fontSize: 32, fontWeight: '800', color: C.textPrimary, letterSpacing: -1 },
+  heroXPSub:    { fontSize: F.h4, fontWeight: '600', color: C.textMuted },
+  statCard:     { flex: 1, backgroundColor: C.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: C.borderDefault, padding: 14, alignItems: 'center' },
+  statIconWrap: { width: 32, height: 32, borderRadius: R.md, alignItems: 'center', justifyContent: 'center', marginBottom: S.sm },
+  statValue:    { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
+  statLabel:    { fontSize: F.caption, color: C.textMuted, marginTop: 2, textAlign: 'center' },
+  statSub:      { fontSize: 10, color: C.textMuted, textAlign: 'center' },
+  cardHeader:   { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginBottom: 14 },
+  cardTitle:    { fontSize: F.body, fontWeight: '700', color: C.textPrimary },
+  cardSub:      { fontSize: F.label, color: C.textMuted, marginTop: S.sm, lineHeight: 18 },
+  barsContainer:{ flexDirection: 'row', alignItems: 'flex-end', height: 120, gap: S.sm },
+  barCol:       { flex: 1, alignItems: 'center', gap: 4 },
+  barTrack:     { flex: 1, width: '100%', justifyContent: 'flex-end' },
+  barFill:      { width: '100%', borderRadius: 4 },
+  barCount:     { fontSize: 10, color: C.textMuted, fontWeight: '600' },
+  barLabel:     { fontSize: 10, color: C.textMuted },
+  analysisRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: S.sm },
+  analysisLabel:{ fontSize: F.label, color: C.textSecondary },
+  analysisValue:{ fontSize: F.label, fontWeight: '700' },
 });

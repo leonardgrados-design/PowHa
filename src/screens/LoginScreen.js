@@ -1,160 +1,204 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
-import { Trophy, User, Lock, Mail, ArrowRight } from 'lucide-react-native';
-import CustomInput from '../components/CustomInput';
+import React, { useState, useRef, useEffect } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Animated, TextInput, ScrollView } from 'react-native';
+import { Zap, User, Lock, Mail, ArrowRight, Eye, EyeOff } from 'lucide-react-native';
 
 import { auth, db } from '../config/firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-// Añadidas las importaciones para consultar si el usuario existe
 import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { C, S, R, F, common } from '../theme';
+
+const AUTH_ERRORS = {
+  'auth/email-already-in-use': 'Este correo ya está registrado.',
+  'auth/invalid-email':        'El formato del correo es inválido.',
+  'auth/weak-password':        'La contraseña debe tener al menos 6 caracteres.',
+  'auth/invalid-credential':   'Correo o contraseña incorrectos.',
+  'auth/user-not-found':       'No existe una cuenta con ese correo.',
+  'auth/wrong-password':       'Contraseña incorrecta.',
+  'auth/too-many-requests':    'Demasiados intentos. Espera un momento.',
+};
+
+function Field({ icon: Icon, placeholder, value, onChangeText, secureTextEntry, keyboardType, error }) {
+  const [focused,  setFocused]  = useState(false);
+  const [visible,  setVisible]  = useState(!secureTextEntry);
+  const borderAnim = useRef(new Animated.Value(0)).current;
+
+  const onFocus = () => { setFocused(true);  Animated.timing(borderAnim, { toValue: 1, duration: 180, useNativeDriver: false }).start(); };
+  const onBlur  = () => { setFocused(false); Animated.timing(borderAnim, { toValue: 0, duration: 180, useNativeDriver: false }).start(); };
+
+  const borderColor = borderAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [error ? C.accentRed : C.borderStrong, error ? C.accentRed : C.borderFocus],
+  });
+
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <Animated.View style={[common.inputWrap, { borderColor }]}>
+        <Icon size={17} color={focused ? C.accentIndigoL : C.textMuted} style={{ flexShrink: 0 }} />
+        <TextInput style={styles.fieldInput} placeholder={placeholder} placeholderTextColor={C.textMuted}
+          value={value} onChangeText={onChangeText} onFocus={onFocus} onBlur={onBlur}
+          secureTextEntry={secureTextEntry && !visible} keyboardType={keyboardType}
+          autoCapitalize="none" autoCorrect={false} />
+        {secureTextEntry && (
+          <TouchableOpacity onPress={() => setVisible(v => !v)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            {visible ? <EyeOff size={17} color={C.textMuted} /> : <Eye size={17} color={C.textMuted} />}
+          </TouchableOpacity>
+        )}
+      </Animated.View>
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
+    </View>
+  );
+}
 
 export default function LoginScreen() {
   const [isRegistering, setIsRegistering] = useState(false);
-  const [email, setEmail] = useState('');
+  const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-  const [loading, setLoading] = useState(false); // Añadido para bloquear doble envíos
+  const [loading,  setLoading]  = useState(false);
+  const [errors,   setErrors]   = useState({});
 
-  const handleAuthentication = async () => {
-    // 1. Validaciones de UI básicas
-    if (!email.trim() || !password.trim()) {
-      Alert.alert("Error", "Por favor, completa todos los campos.");
-      return;
+  const logoScale   = useRef(new Animated.Value(0.7)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const formSlide   = useRef(new Animated.Value(40)).current;
+  const formOpacity = useRef(new Animated.Value(0)).current;
+  const btnScale    = useRef(new Animated.Value(1)).current;
+  const modeAnim    = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(logoScale,   { toValue: 1, tension: 60, friction: 8,  useNativeDriver: true }),
+      Animated.timing(logoOpacity, { toValue: 1, duration: 400,              useNativeDriver: true }),
+      Animated.timing(formSlide,   { toValue: 0, duration: 450, delay: 150,  useNativeDriver: true }),
+      Animated.timing(formOpacity, { toValue: 1, duration: 450, delay: 150,  useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  const switchMode = () => {
+    setErrors({});
+    Animated.sequence([
+      Animated.timing(modeAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+      Animated.timing(modeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
+    ]).start();
+    setIsRegistering(v => !v);
+  };
+
+  const validate = () => {
+    const e = {};
+    if (!email.trim())              e.email    = 'El correo es obligatorio.';
+    else if (!/\S+@\S+\.\S+/.test(email)) e.email = 'Formato inválido.';
+    if (!password.trim())           e.password = 'La contraseña es obligatoria.';
+    else if (password.length < 6)   e.password = 'Mínimo 6 caracteres.';
+    if (isRegistering) {
+      const clean = username.trim().toLowerCase();
+      if (!clean)          e.username = 'El nombre es obligatorio.';
+      else if (clean.length < 3) e.username = 'Mínimo 3 caracteres.';
     }
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
+  const handleAuth = async () => {
+    if (!validate()) return;
     setLoading(true);
-
     try {
       if (isRegistering) {
-        const cleanUsername = username.trim().toLowerCase();
-        
-        if (!cleanUsername) {
-          Alert.alert("Error", "Falta el nombre de usuario.");
-          setLoading(false);
-          return;
-        }
+        const clean = username.trim().toLowerCase();
+        const snap  = await getDocs(query(collection(db, 'usuarios'), where('username_lower', '==', clean)));
+        if (!snap.empty) { setErrors({ username: 'Ese nombre ya está en uso.' }); return; }
 
-        if (cleanUsername.length < 3) {
-          Alert.alert("Error", "El nombre de usuario debe tener al menos 3 caracteres.");
-          setLoading(false);
-          return;
-        }
-
-        // 2. PARCHE CRÍTICO: Verificar unicidad del username
-        const usersRef = collection(db, 'usuarios');
-        const q = query(usersRef, where('username_lower', '==', cleanUsername));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-          Alert.alert("Nombre no disponible", "Ese nombre de usuario ya está en uso. Por favor, elige otro.");
-          setLoading(false);
-          return;
-        }
-
-        // 3. Si el nombre está libre, creamos el Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        const user = userCredential.user;
-
-        // 4. Guardamos en Firestore incluyendo una versión en minúsculas para búsquedas exactas futuras
+        const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
         await setDoc(doc(db, 'usuarios', user.uid), {
-          username: username.trim(),
-          username_lower: cleanUsername, 
-          email: email.trim(),
-          nivel: 1,
-          xp_total: 0,
-          racha_actual: 0,
-          created_at: new Date().toISOString()
+          username: username.trim(), username_lower: clean,
+          email: email.trim(), nivel: 1, xp_total: 0, racha_actual: 0,
+          avatar_id: 'a1', photo_url: null, notif_enabled: true, dark_mode: true,
+          created_at: new Date().toISOString(),
         });
-
       } else {
-        // Inicio de sesión normal
         await signInWithEmailAndPassword(auth, email.trim(), password);
       }
     } catch (error) {
-      // Traducir errores comunes de Firebase para el usuario
-      let mensajeError = "Ocurrió un error inesperado.";
-      if (error.code === 'auth/email-already-in-use') mensajeError = 'Este correo ya está registrado.';
-      if (error.code === 'auth/invalid-email') mensajeError = 'El formato del correo es inválido.';
-      if (error.code === 'auth/weak-password') mensajeError = 'La contraseña debe tener al menos 6 caracteres.';
-      if (error.code === 'auth/invalid-credential') mensajeError = 'Correo o contraseña incorrectos.';
-
-      Alert.alert("Error de autenticación", mensajeError);
+      const msg = AUTH_ERRORS[error.code] || 'Ocurrió un error inesperado.';
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') setErrors({ password: msg });
+      else if (error.code?.includes('email')) setErrors({ email: msg });
+      else setErrors({ general: msg });
     } finally {
       setLoading(false);
     }
   };
 
+  const formTranslate = modeAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 6, 0] });
+
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
-      <View style={styles.logoSection}>
-        <View style={styles.logoCircle}><Trophy size={60} color="#2563EB" /></View>
-        <Text style={styles.appTitle}>Trackly</Text>
-        <Text style={styles.appSlogan}>{isRegistering ? "Crea tu identidad." : "Bienvenido."}</Text>
-      </View>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.root}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-      <View style={styles.formSection}>
-        {isRegistering && (
-          <CustomInput 
-            icon={User} 
-            placeholder="Nombre de Usuario" 
-            value={username} 
-            onChangeText={setUsername} 
-            autoCapitalize="none"
-          />
-        )}
-        <CustomInput 
-          icon={Mail} 
-          placeholder="Correo Electrónico" 
-          value={email} 
-          onChangeText={setEmail} 
-          keyboardType="email-address" 
-          autoCapitalize="none" 
-        />
-        <CustomInput 
-          icon={Lock} 
-          placeholder="Contraseña" 
-          value={password} 
-          onChangeText={setPassword} 
-          secureTextEntry 
-        />
+        <Animated.View style={[styles.logoSection, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
+          <View style={styles.logoCircle}>
+            <Zap size={40} color={C.accentIndigo} fill={C.accentIndigo} />
+          </View>
+          <Text style={styles.appName}>Trackly</Text>
+          <Text style={styles.appTagline}>{isRegistering ? 'Crea tu identidad.' : 'Bienvenido de vuelta.'}</Text>
+        </Animated.View>
 
-        <TouchableOpacity 
-          style={[styles.loginButton, loading && styles.loginButtonDisabled]} 
-          onPress={handleAuthentication}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <>
-              <Text style={styles.loginButtonText}>{isRegistering ? "Crear Cuenta" : "Iniciar Sesión"}</Text>
-              <ArrowRight size={20} color="white" />
-            </>
+        <Animated.View style={{ opacity: formOpacity, transform: [{ translateY: formSlide }, { translateX: formTranslate }] }}>
+          {errors.general && (
+            <View style={styles.generalError}>
+              <Text style={styles.generalErrorText}>{errors.general}</Text>
+            </View>
           )}
-        </TouchableOpacity>
 
-        <TouchableOpacity 
-          onPress={() => setIsRegistering(!isRegistering)} 
-          style={styles.switchButton}
-          disabled={loading}
-        >
-          <Text style={styles.switchText}>{isRegistering ? "¿Ya tienes cuenta? Inicia Sesión" : "¿Nuevo aquí? Regístrate"}</Text>
-        </TouchableOpacity>
-      </View>
+          {isRegistering && (
+            <Field icon={User} placeholder="Nombre de usuario" value={username}
+              onChangeText={t => { setUsername(t); setErrors(e => ({ ...e, username: null })); }}
+              error={errors.username} />
+          )}
+          <Field icon={Mail} placeholder="Correo electrónico" value={email}
+            onChangeText={t => { setEmail(t); setErrors(e => ({ ...e, email: null })); }}
+            keyboardType="email-address" error={errors.email} />
+          <Field icon={Lock} placeholder="Contraseña" value={password}
+            onChangeText={t => { setPassword(t); setErrors(e => ({ ...e, password: null })); }}
+            secureTextEntry error={errors.password} />
+
+          <Animated.View style={{ transform: [{ scale: btnScale }], marginTop: S.sm }}>
+            <TouchableOpacity
+              style={[common.primaryBtn, loading && { backgroundColor: C.accentIndigo + '80' }]}
+              onPress={handleAuth}
+              onPressIn={() => Animated.spring(btnScale, { toValue: 0.96, useNativeDriver: true, tension: 200 }).start()}
+              onPressOut={() => Animated.spring(btnScale, { toValue: 1,   useNativeDriver: true, tension: 200 }).start()}
+              disabled={loading} activeOpacity={1}>
+              {loading ? <ActivityIndicator color="#fff" /> : (
+                <>
+                  <Text style={common.primaryBtnText}>{isRegistering ? 'Crear cuenta' : 'Iniciar sesión'}</Text>
+                  <ArrowRight size={18} color="#fff" />
+                </>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
+
+          <TouchableOpacity onPress={switchMode} disabled={loading} style={styles.switchBtn}>
+            <Text style={styles.switchText}>
+              {isRegistering ? '¿Ya tienes cuenta? ' : '¿Nuevo aquí? '}
+              <Text style={styles.switchAccent}>{isRegistering ? 'Inicia sesión' : 'Regístrate'}</Text>
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6', justifyContent: 'center', padding: 24 },
-  logoSection: { alignItems: 'center', marginBottom: 40 },
-  logoCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center', marginBottom: 20, shadowColor: "#2563EB", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, elevation: 10 },
-  appTitle: { fontSize: 32, fontWeight: '900', color: '#1F2937', marginBottom: 5 },
-  appSlogan: { fontSize: 16, color: '#6B7280', textAlign: 'center' },
-  formSection: { width: '100%' },
-  loginButton: { backgroundColor: '#2563EB', flexDirection: 'row', height: 60, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 10, elevation: 5 },
-  loginButtonDisabled: { backgroundColor: '#93C5FD', elevation: 0 },
-  loginButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold', marginRight: 10 },
-  switchButton: { marginTop: 20, alignItems: 'center', padding: 10 },
-  switchText: { color: '#4B5563', fontWeight: '600' },
+  root:             { flex: 1, backgroundColor: C.bgBase },
+  scroll:           { flexGrow: 1, justifyContent: 'center', padding: S.lg, paddingBottom: 48 },
+  logoSection:      { alignItems: 'center', marginBottom: 44 },
+  logoCircle:       { width: 80, height: 80, borderRadius: 22, backgroundColor: C.bgIndigo, borderWidth: 1.5, borderColor: C.bgIndigoL, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+  appName:          { fontSize: 34, fontWeight: '900', color: C.textPrimary, letterSpacing: -1 },
+  appTagline:       { fontSize: F.body, color: C.textMuted, marginTop: 5 },
+  fieldInput:       { flex: 1, fontSize: F.body, color: C.textPrimary, fontWeight: '500' },
+  fieldError:       { fontSize: F.small, color: C.accentRed, marginTop: 5, marginLeft: 4 },
+  generalError:     { backgroundColor: C.accentRed + '18', borderWidth: 0.5, borderColor: C.accentRed + '50', borderRadius: R.md, padding: 12, marginBottom: 14 },
+  generalErrorText: { color: C.accentRed, fontSize: F.label, fontWeight: '500', textAlign: 'center' },
+  switchBtn:        { alignItems: 'center', marginTop: 22, padding: S.sm },
+  switchText:       { fontSize: F.label, color: C.textMuted },
+  switchAccent:     { color: C.accentIndigoL, fontWeight: '700' },
 });

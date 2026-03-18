@@ -1,48 +1,86 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { Trophy, User, Lock, Mail, ArrowRight } from 'lucide-react-native';
 import CustomInput from '../components/CustomInput';
 
-// Importamos la lógica real de Firebase
 import { auth, db } from '../config/firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+// Añadidas las importaciones para consultar si el usuario existe
+import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 export default function LoginScreen() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [loading, setLoading] = useState(false); // Añadido para bloquear doble envíos
 
   const handleAuthentication = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Campos incompletos.");
+    // 1. Validaciones de UI básicas
+    if (!email.trim() || !password.trim()) {
+      Alert.alert("Error", "Por favor, completa todos los campos.");
       return;
     }
 
+    setLoading(true);
+
     try {
       if (isRegistering) {
-        if (!username) {
+        const cleanUsername = username.trim().toLowerCase();
+        
+        if (!cleanUsername) {
           Alert.alert("Error", "Falta el nombre de usuario.");
+          setLoading(false);
           return;
         }
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+
+        if (cleanUsername.length < 3) {
+          Alert.alert("Error", "El nombre de usuario debe tener al menos 3 caracteres.");
+          setLoading(false);
+          return;
+        }
+
+        // 2. PARCHE CRÍTICO: Verificar unicidad del username
+        const usersRef = collection(db, 'usuarios');
+        const q = query(usersRef, where('username_lower', '==', cleanUsername));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+          Alert.alert("Nombre no disponible", "Ese nombre de usuario ya está en uso. Por favor, elige otro.");
+          setLoading(false);
+          return;
+        }
+
+        // 3. Si el nombre está libre, creamos el Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
         const user = userCredential.user;
 
-        // Guarda el perfil inicial en Firestore
+        // 4. Guardamos en Firestore incluyendo una versión en minúsculas para búsquedas exactas futuras
         await setDoc(doc(db, 'usuarios', user.uid), {
-          username: username,
-          email: email,
+          username: username.trim(),
+          username_lower: cleanUsername, 
+          email: email.trim(),
           nivel: 1,
           xp_total: 0,
           racha_actual: 0,
           created_at: new Date().toISOString()
         });
+
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        // Inicio de sesión normal
+        await signInWithEmailAndPassword(auth, email.trim(), password);
       }
     } catch (error) {
-      Alert.alert("Error de autenticación", error.message);
+      // Traducir errores comunes de Firebase para el usuario
+      let mensajeError = "Ocurrió un error inesperado.";
+      if (error.code === 'auth/email-already-in-use') mensajeError = 'Este correo ya está registrado.';
+      if (error.code === 'auth/invalid-email') mensajeError = 'El formato del correo es inválido.';
+      if (error.code === 'auth/weak-password') mensajeError = 'La contraseña debe tener al menos 6 caracteres.';
+      if (error.code === 'auth/invalid-credential') mensajeError = 'Correo o contraseña incorrectos.';
+
+      Alert.alert("Error de autenticación", mensajeError);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -55,16 +93,51 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.formSection}>
-        {isRegistering && <CustomInput icon={User} placeholder="Nombre de Usuario" value={username} onChangeText={setUsername} />}
-        <CustomInput icon={Mail} placeholder="Correo" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-        <CustomInput icon={Lock} placeholder="Contraseña" value={password} onChangeText={setPassword} secureTextEntry />
+        {isRegistering && (
+          <CustomInput 
+            icon={User} 
+            placeholder="Nombre de Usuario" 
+            value={username} 
+            onChangeText={setUsername} 
+            autoCapitalize="none"
+          />
+        )}
+        <CustomInput 
+          icon={Mail} 
+          placeholder="Correo Electrónico" 
+          value={email} 
+          onChangeText={setEmail} 
+          keyboardType="email-address" 
+          autoCapitalize="none" 
+        />
+        <CustomInput 
+          icon={Lock} 
+          placeholder="Contraseña" 
+          value={password} 
+          onChangeText={setPassword} 
+          secureTextEntry 
+        />
 
-        <TouchableOpacity style={styles.loginButton} onPress={handleAuthentication}>
-          <Text style={styles.loginButtonText}>{isRegistering ? "Crear Cuenta" : "Iniciar Sesión"}</Text>
-          <ArrowRight size={20} color="white" />
+        <TouchableOpacity 
+          style={[styles.loginButton, loading && styles.loginButtonDisabled]} 
+          onPress={handleAuthentication}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <>
+              <Text style={styles.loginButtonText}>{isRegistering ? "Crear Cuenta" : "Iniciar Sesión"}</Text>
+              <ArrowRight size={20} color="white" />
+            </>
+          )}
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => setIsRegistering(!isRegistering)} style={styles.switchButton}>
+        <TouchableOpacity 
+          onPress={() => setIsRegistering(!isRegistering)} 
+          style={styles.switchButton}
+          disabled={loading}
+        >
           <Text style={styles.switchText}>{isRegistering ? "¿Ya tienes cuenta? Inicia Sesión" : "¿Nuevo aquí? Regístrate"}</Text>
         </TouchableOpacity>
       </View>
@@ -80,6 +153,7 @@ const styles = StyleSheet.create({
   appSlogan: { fontSize: 16, color: '#6B7280', textAlign: 'center' },
   formSection: { width: '100%' },
   loginButton: { backgroundColor: '#2563EB', flexDirection: 'row', height: 60, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 10, elevation: 5 },
+  loginButtonDisabled: { backgroundColor: '#93C5FD', elevation: 0 },
   loginButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold', marginRight: 10 },
   switchButton: { marginTop: 20, alignItems: 'center', padding: 10 },
   switchText: { color: '#4B5563', fontWeight: '600' },

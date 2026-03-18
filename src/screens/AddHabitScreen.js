@@ -1,206 +1,330 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   Text, 
   View, 
-  TextInput, 
-  TouchableOpacity, 
+  ScrollView, 
   SafeAreaView, 
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
+  Platform, 
+  StatusBar,
+  TouchableOpacity,
   ActivityIndicator,
-  ScrollView
+  Alert
 } from 'react-native';
-import { ArrowLeft, Dumbbell, Brain, Sun, Sunset, Moon, Clock } from 'lucide-react-native';
+import { Check, Flame, ChevronRight, Inbox, CheckCircle2 } from 'lucide-react-native';
 
-import { db, auth } from '../config/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../config/firebase';
+import { collection, query, where, onSnapshot, addDoc, getDocs, deleteDoc, doc, updateDoc, increment, getDoc } from 'firebase/firestore';
 
-export default function AddHabitScreen({ navigation }) {
-  const [nuevoHabit, setNuevoHabit] = useState('');
-  const [category, setCategory] = useState('cuerpo'); 
-  const [horario, setHorario] = useState('cualquiera');
-  const [iconoSeleccionado, setIconoSeleccionado] = useState('⭐');
-  const [loading, setLoading] = useState(false);
+export default function HomeScreen() {
+  const [stats, setStats] = useState({ xp: 0, level: 1, streak: 0 }); 
+  const [habits, setHabits] = useState([]);
+  const [completedTodayIds, setCompletedTodayIds] = useState([]); 
+  const [loading, setLoading] = useState(true);
+  const [isToggling, setIsToggling] = useState(false);
 
-  const iconos = ["🏃", "📚", "🥗", "🧘", "💧", "🚴", "🧠", "🦷", "🐕", "⭐", "🚭", "💻", "💤"];
-
-  const crearHabit = async () => {
-    // 1. Validaciones iniciales
-    if (nuevoHabit.trim() === "") {
-      Alert.alert("Atención", "Escribe un nombre para el hábito.");
-      return;
-    }
-
+  useEffect(() => {
     const user = auth.currentUser;
-    if (!user) {
-      Alert.alert("Error Crítico", "No hay sesión activa. Cierra sesión y vuelve a entrar.");
-      return;
-    }
+    if (!user) return;
 
-    setLoading(true);
+    const today = new Date();
+    const todayStr = today.toLocaleDateString('en-CA'); 
+
+    // 1. LISTENER DE PERFIL
+    const unsubscribeUser = onSnapshot(doc(db, 'usuarios', user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        const userData = docSnap.data();
+        
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+        
+        let displayStreak = userData.racha_actual || 0;
+        const ultimaFecha = userData.ultima_fecha_racha;
+
+        if (ultimaFecha && ultimaFecha !== todayStr && ultimaFecha !== yesterdayStr) {
+            displayStreak = 0;
+        }
+
+        setStats({
+          xp: userData.xp_total || 0,
+          level: Math.floor((userData.xp_total || 0) / 50) + 1,
+          streak: displayStreak
+        });
+      }
+    }, (error) => {
+      // PARCHE DE RACE CONDITION: Si el error es por falta de permisos (cierre de sesión), lo ignoramos silenciosamente.
+      if (error.code === 'permission-denied') return;
+      console.error("Error perfil:", error);
+    });
+
+    // 2. LISTENER DE HÁBITOS
+    const qHabits = query(
+      collection(db, 'habitos'), 
+      where('user_id', '==', user.uid),
+      where('activo', '==', true) 
+    );
+    const unsubscribeHabits = onSnapshot(qHabits, (querySnapshot) => {
+      const habitosDescargados = [];
+      querySnapshot.forEach((documento) => {
+        habitosDescargados.push({ id: documento.id, ...documento.data() });
+      });
+      setHabits(habitosDescargados);
+    }, (error) => {
+      if (error.code === 'permission-denied') return;
+      console.error("Error hábitos:", error);
+    });
+
+    // 3. LISTENER DEL HISTORIAL DE HOY
+    const qRegistros = query(
+      collection(db, 'registros_habito'), 
+      where('user_id', '==', user.uid),
+      where('fecha_completado', '==', todayStr)
+    );
+    const unsubscribeRegistros = onSnapshot(qRegistros, (querySnapshot) => {
+      const completados = querySnapshot.docs.map(doc => doc.data().habit_id);
+      setCompletedTodayIds(completados);
+      setLoading(false);
+    }, (error) => {
+      if (error.code === 'permission-denied') return;
+      console.error("Error registros:", error);
+      setLoading(false);
+    });
+
+    return () => {
+      unsubscribeUser();
+      unsubscribeHabits();
+      unsubscribeRegistros();
+    };
+  }, []);
+
+  const toggleHabit = async (habit) => {
+    if (isToggling) return; 
+    setIsToggling(true);
+
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const isCompleted = completedTodayIds.includes(habit.id);
+    const userRef = doc(db, 'usuarios', auth.currentUser.uid); 
 
     try {
-      // 2. Intento de escritura en la Base de Datos
-      console.log("Intentando guardar en Firestore para el usuario:", user.uid);
-      
-      await addDoc(collection(db, 'habitos'), {
-        user_id: user.uid,
-        titulo: nuevoHabit.trim(),
-        categoria: category,
-        icono: iconoSeleccionado,
-        horario: horario, 
-        frecuencia: 'diario',
-        valor_xp: category === 'cuerpo' ? 20 : 15,
-        activo: true,
-        created_at: serverTimestamp()
-      });
+      if (isCompleted) {
+        const q = query(collection(db, 'registros_habito'), where('habit_id', '==', habit.id), where('fecha_completado', '==', todayStr));
+        const snapshot = await getDocs(q);
+        snapshot.forEach(async (documento) => {
+          await deleteDoc(doc(db, 'registros_habito', documento.id));
+        });
+        await updateDoc(userRef, { xp_total: increment(-(habit.valor_xp || 10)) });
+      } else {
+        await addDoc(collection(db, 'registros_habito'), {
+          user_id: auth.currentUser.uid,
+          habit_id: habit.id,
+          fecha_completado: todayStr,
+          xp_otorgada: habit.valor_xp || 10
+        });
 
-      console.log("Guardado exitoso.");
-      setLoading(false);
-      setNuevoHabit('');
-      
-      // Volvemos a la pantalla principal
-      navigation.navigate('Inicio'); 
+        const userSnap = await getDoc(userRef);
+        const userData = userSnap.data() || {};
+        const ultimaFecha = userData.ultima_fecha_racha;
+        const rachaActual = userData.racha_actual || 0;
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toLocaleDateString('en-CA');
 
+        let updateData = { xp_total: increment(habit.valor_xp || 10) };
+
+        if (ultimaFecha !== todayStr) {
+          if (ultimaFecha === yesterdayStr) {
+            updateData.racha_actual = rachaActual + 1; 
+          } else {
+            updateData.racha_actual = 1; 
+          }
+          updateData.ultima_fecha_racha = todayStr;
+        }
+        await updateDoc(userRef, updateData);
+      }
     } catch (error) {
-      setLoading(false);
-      console.error("FIREBASE ERROR DETALLADO:", error);
-      // Imprimimos el error real de Firebase en la pantalla para dejar de adivinar
-      Alert.alert("Fallo de Base de Datos", error.message);
+      console.error("Error al actualizar:", error);
+      Alert.alert("Error de Sincronización", "No se pudo guardar el progreso.");
+    } finally {
+      setIsToggling(false);
     }
   };
 
+  const mappedHabits = habits.map(h => ({
+    ...h,
+    completado_hoy: completedTodayIds.includes(h.id)
+  }));
+
+  const pendingPhysical = mappedHabits.filter(h => h.categoria === 'cuerpo' && !h.completado_hoy);
+  const pendingMental = mappedHabits.filter(h => h.categoria === 'mente' && !h.completado_hoy);
+  const completedToday = mappedHabits.filter(h => h.completado_hoy);
+  const isAllDone = pendingPhysical.length === 0 && pendingMental.length === 0 && completedToday.length > 0;
+
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#1F2937" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Nuevo hábito</Text>
-          <View style={{ width: 40 }} />
+        <View style={styles.headerContainer}>
+          <View>
+            <Text style={styles.greetingText}>Hola de nuevo</Text>
+            <Text style={styles.subGreetingText}>Es hora de evolucionar.</Text>
+          </View>
+          
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={styles.streakBadge}>
+              <Flame size={18} color="#F97316" fill={stats.streak > 0 ? "#F97316" : "transparent"} />
+              <Text style={styles.streakText}>{stats.streak}</Text>
+            </View>
+          </View>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          
-          <TextInput
-            placeholder="Nombre del hábito (Ej. Correr 2 km)"
-            style={styles.input}
-            value={nuevoHabit}
-            onChangeText={setNuevoHabit}
-            maxLength={30}
-          />
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Categoría</Text>
-            <View style={styles.categoryContainer}>
-              <TouchableOpacity 
-                style={[styles.categoryBtn, category === 'cuerpo' && styles.categoryBtnActive]}
-                onPress={() => setCategory('cuerpo')}
-              >
-                <Dumbbell size={20} color={category === 'cuerpo' ? '#FFFFFF' : '#4B5563'} />
-                <Text style={[styles.categoryText, category === 'cuerpo' && styles.categoryTextActive]}>Físico</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.categoryBtn, category === 'mente' && styles.categoryBtnActive]}
-                onPress={() => setCategory('mente')}
-              >
-                <Brain size={20} color={category === 'mente' ? '#FFFFFF' : '#4B5563'} />
-                <Text style={[styles.categoryText, category === 'mente' && styles.categoryTextActive]}>Mental</Text>
-              </TouchableOpacity>
+        <View style={styles.bannerContainer}>
+          <View style={styles.bannerTextContainer}>
+            <Text style={styles.bannerTitle}>Nivel {stats.level}</Text>
+            <Text style={styles.bannerSubtitle}>{stats.xp} XP Total Acumulada</Text>
+            <View style={styles.progressContainer}>
+               <View style={styles.progressBarBg}>
+                 <View style={[styles.progressBarFill, { width: `${(stats.xp % 50) * 2}%` }]} />
+               </View>
+               <Text style={styles.progressText}>{stats.xp % 50}/50 XP para el siguiente nivel</Text>
             </View>
           </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Horario</Text>
-            <View style={styles.timeGrid}>
-              <TouchableOpacity style={[styles.timeBtn, horario === 'cualquiera' && styles.timeBtnActive]} onPress={() => setHorario('cualquiera')}>
-                <Clock size={18} color={horario === 'cualquiera' ? '#FFFFFF' : '#6B7280'} />
-                <Text style={[styles.timeText, horario === 'cualquiera' && styles.timeTextActive]}>Libre</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.timeBtn, horario === 'mañana' && styles.timeBtnActive]} onPress={() => setHorario('mañana')}>
-                <Sun size={18} color={horario === 'mañana' ? '#FFFFFF' : '#6B7280'} />
-                <Text style={[styles.timeText, horario === 'mañana' && styles.timeTextActive]}>Mañana</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.timeBtn, horario === 'tarde' && styles.timeBtnActive]} onPress={() => setHorario('tarde')}>
-                <Sunset size={18} color={horario === 'tarde' ? '#FFFFFF' : '#6B7280'} />
-                <Text style={[styles.timeText, horario === 'tarde' && styles.timeTextActive]}>Tarde</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.timeBtn, horario === 'noche' && styles.timeBtnActive]} onPress={() => setHorario('noche')}>
-                <Moon size={18} color={horario === 'noche' ? '#FFFFFF' : '#6B7280'} />
-                <Text style={[styles.timeText, horario === 'noche' && styles.timeTextActive]}>Noche</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.avatarContainer}>
+             <View style={styles.avatarCircle}>
+                <Text style={styles.avatarEmoji}>{stats.level >= 5 ? "😎" : stats.level >= 3 ? "🔥" : "😐"}</Text>
+             </View>
           </View>
+        </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Elige un icono</Text>
-            <View style={styles.iconosGrid}>
-              {iconos.map((icon, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => setIconoSeleccionado(icon)}
-                  style={[styles.iconoBtn, iconoSeleccionado === icon && styles.iconoBtnActive]}
-                >
-                  <Text style={{ fontSize: 28 }}>{icon}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+        {loading ? (
+          <View style={styles.centerContent}>
+            <ActivityIndicator size="large" color="#3B82F6" />
           </View>
-          
-          <View style={{ height: 40 }} />
-        </ScrollView>
-
-        <View style={styles.footer}>
-          <TouchableOpacity 
-            style={[styles.botonCrear, (!nuevoHabit.trim() || loading) && styles.botonCrearDisabled]} 
-            onPress={crearHabit}
-            disabled={!nuevoHabit.trim() || loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.textoBoton}>+ Crear hábito</Text>
+        ) : habits.length === 0 ? (
+          <View style={styles.emptyStateContainer}>
+            <Inbox size={48} color="#D1D5DB" />
+            <Text style={styles.emptyStateTitle}>No tienes hábitos activos</Text>
+            <Text style={styles.emptyStateDesc}>Toca el botón "+" en el menú inferior para crear tu primer objetivo.</Text>
+          </View>
+        ) : (
+          <>
+            {isAllDone && (
+              <View style={styles.allDoneContainer}>
+                <CheckCircle2 size={40} color="#10B981" />
+                <Text style={styles.allDoneTitle}>¡Día completado!</Text>
+                <Text style={styles.allDoneDesc}>Has terminado todos tus objetivos por hoy.</Text>
+              </View>
             )}
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+
+            {pendingPhysical.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Cuerpo & Físico</Text>
+                  <ChevronRight size={20} color="#1F2937" />
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+                  <View style={styles.horizontalContainer}>
+                    {pendingPhysical.map(habit => (
+                      <TouchableOpacity key={habit.id} style={styles.habitCard} onPress={() => toggleHabit(habit)} activeOpacity={0.8} disabled={isToggling}>
+                        <View style={styles.iconCircle}>
+                          <Text style={styles.emojiIcon}>{habit.icono}</Text>
+                        </View>
+                        <Text style={styles.habitTitle} numberOfLines={1}>{habit.titulo}</Text>
+                        <Text style={styles.xpBadge}>+{habit.valor_xp || 10} XP</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              </>
+            )}
+
+            {pendingMental.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Mente & Enfoque</Text>
+                  <ChevronRight size={20} color="#1F2937" />
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+                  <View style={styles.horizontalContainer}>
+                    {pendingMental.map(habit => (
+                      <TouchableOpacity key={habit.id} style={styles.habitCard} onPress={() => toggleHabit(habit)} activeOpacity={0.8} disabled={isToggling}>
+                        <View style={styles.iconCircle}>
+                          <Text style={styles.emojiIcon}>{habit.icono}</Text>
+                        </View>
+                        <Text style={styles.habitTitle} numberOfLines={1}>{habit.titulo}</Text>
+                        <Text style={styles.xpBadge}>+{habit.valor_xp || 15} XP</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              </>
+            )}
+
+            {completedToday.length > 0 && (
+              <>
+                <View style={[styles.sectionHeader, { marginTop: pendingPhysical.length === 0 && pendingMental.length === 0 ? 15 : 40 }]}>
+                  <Text style={[styles.sectionTitle, { color: '#9CA3AF' }]}>Completados Hoy</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+                  <View style={styles.horizontalContainer}>
+                    {completedToday.map(habit => (
+                      <TouchableOpacity key={habit.id} style={[styles.habitCard, styles.habitCardCompleted]} onPress={() => toggleHabit(habit)} activeOpacity={0.8} disabled={isToggling}>
+                        <View style={[styles.iconCircle, styles.iconCircleCompleted]}>
+                          <Check size={30} color="#10B981" />
+                        </View>
+                        <Text style={[styles.habitTitle, styles.habitTitleCompleted]} numberOfLines={1}>{habit.titulo}</Text>
+                        <Text style={[styles.xpBadge, { color: '#9CA3AF' }]}>Hecho</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              </>
+            )}
+          </>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  backButton: { padding: 8 },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#1F2937' },
-  content: { flex: 1, padding: 20 },
-  input: { borderWidth: 1, borderColor: "#ccc", width: "100%", padding: 15, borderRadius: 12, marginBottom: 25, fontSize: 16, backgroundColor: '#f9f9f9' },
-  inputGroup: { marginBottom: 25 },
-  label: { fontSize: 14, fontWeight: 'bold', color: '#555', marginBottom: 10, textTransform: 'uppercase' },
-  
-  categoryContainer: { flexDirection: 'row', gap: 10 },
-  categoryBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, backgroundColor: '#f3f3f3', borderRadius: 12, borderWidth: 1, borderColor: 'transparent' },
-  categoryBtnActive: { backgroundColor: '#1F2937', borderColor: '#1F2937' },
-  categoryText: { fontSize: 16, fontWeight: 'bold', color: '#555' },
-  categoryTextActive: { color: '#FFFFFF' },
-  
-  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  timeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f3f3f3', borderWidth: 1, borderColor: 'transparent', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 20 },
-  timeBtnActive: { backgroundColor: '#3B82F6', borderColor: '#3B82F6' },
-  timeText: { fontSize: 14, fontWeight: 'bold', color: '#555' },
-  timeTextActive: { color: '#FFFFFF' },
-
-  iconosGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 15 },
-  iconoBtn: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#f9f9f9', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'transparent' },
-  iconoBtnActive: { borderColor: '#4CAF50', backgroundColor: '#e8f5e9' },
-  
-  footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#eee' },
-  botonCrear: { backgroundColor: "#4CAF50", padding: 16, borderRadius: 12, alignItems: 'center' },
-  botonCrearDisabled: { backgroundColor: "#A5D6A7" },
-  textoBoton: { color: "white", fontWeight: "bold", fontSize: 18 }
+  container: { flex: 1, backgroundColor: '#FFFFFF', paddingTop: Platform.OS === 'android' ? 25 : 0 },
+  scrollContent: { paddingBottom: 40 },
+  headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginTop: 10 },
+  greetingText: { fontSize: 22, fontWeight: '900', color: '#1F2937' },
+  subGreetingText: { fontSize: 14, color: '#6B7280', marginTop: 2 },
+  streakBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFEDD5', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  streakText: { color: '#EA580C', fontWeight: 'bold', fontSize: 16, marginLeft: 6 },
+  bannerContainer: { backgroundColor: '#F3F4F6', borderRadius: 20, marginHorizontal: 16, marginTop: 24, padding: 20, flexDirection: 'row', alignItems: 'center' },
+  bannerTextContainer: { flex: 1, paddingRight: 10 },
+  bannerTitle: { fontSize: 24, fontWeight: '900', color: '#1F2937' },
+  bannerSubtitle: { fontSize: 14, color: '#4B5563', marginTop: 4, marginBottom: 12, fontWeight: '500' },
+  progressContainer: { width: '100%' },
+  progressBarBg: { height: 8, backgroundColor: '#E5E7EB', borderRadius: 4, overflow: 'hidden' },
+  progressBarFill: { height: '100%', backgroundColor: '#3B82F6', borderRadius: 4 },
+  progressText: { fontSize: 11, color: '#6B7280', marginTop: 6, fontWeight: '600' },
+  avatarContainer: { justifyContent: 'center', alignItems: 'center' },
+  avatarCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFFFFF', borderWidth: 3, borderColor: '#3B82F6', justifyContent: 'center', alignItems: 'center', shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, elevation: 4 },
+  avatarEmoji: { fontSize: 40 },
+  centerContent: { alignItems: 'center', justifyContent: 'center', marginTop: 60, paddingHorizontal: 20 },
+  emptyStateContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 60, paddingHorizontal: 30, backgroundColor: '#F9FAFB', marginHorizontal: 16, borderRadius: 16, paddingVertical: 40, borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed' },
+  emptyStateTitle: { fontSize: 16, fontWeight: 'bold', color: '#4B5563', marginTop: 16, marginBottom: 8 },
+  emptyStateDesc: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', lineHeight: 20 },
+  allDoneContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 30, marginHorizontal: 16, backgroundColor: '#ECFDF5', borderRadius: 16, marginTop: 20, borderWidth: 1, borderColor: '#D1FAE5' },
+  allDoneTitle: { fontSize: 18, fontWeight: 'bold', color: '#065F46', marginTop: 10 },
+  allDoneDesc: { fontSize: 14, color: '#047857', marginTop: 4 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 35, marginBottom: 15 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginRight: 4 },
+  horizontalScroll: { paddingLeft: 16 },
+  horizontalContainer: { flexDirection: 'row', paddingRight: 16 },
+  habitCard: { width: 130, padding: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 16, alignItems: 'center', marginRight: 16 },
+  habitCardCompleted: { backgroundColor: '#F9FAFB', borderColor: '#F3F4F6' },
+  iconCircle: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  iconCircleCompleted: { backgroundColor: '#ECFDF5' },
+  emojiIcon: { fontSize: 28 },
+  habitTitle: { fontSize: 14, fontWeight: 'bold', color: '#1F2937', textAlign: 'center', marginBottom: 4 },
+  habitTitleCompleted: { color: '#9CA3AF', textDecorationLine: 'line-through' },
+  xpBadge: { fontSize: 12, fontWeight: 'bold', color: '#F97316' },
 });

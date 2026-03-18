@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "PowHa",
-    "slug": "PowHa",
+    "name": "Trackly",
+    "slug": "Trackly",
+    "scheme":"Trackly",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -30,5 +31,5 @@
       "expo-router"
     ]
   },
-  "scheme":"your-app-scheme"
+ 
 }

@@ -1,37 +1,87 @@
-import 'react-native-gesture-handler';
 import React, { useState, useEffect } from 'react';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import AppNavigator from './src/navigation/AppNavigator';
 
-// 1. Importaciones críticas de Firebase
+import { auth, db } from './src/config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './src/config/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+
+import AppNavigator from './src/navigation/AppNavigator';
+import { C } from './src/theme';
 
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user,                 setUser]                 = useState(undefined); // undefined = loading
+  const [onboardingCompleted,  setOnboardingCompleted]  = useState(null);      // null = loading
 
   useEffect(() => {
-    // 2. Este listener es el verdadero motor. 
-    // Escucha si Firebase logró iniciar sesión y actualiza el estado global automáticamente.
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-  console.log("Firebase detectó usuario:", currentUser ? currentUser.uid : "NINGUNO");
-  setUser(currentUser);
-  setLoading(false);
-});
+    // Listen to auth state
+    const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser ?? null);
 
-    return unsubscribe;
+      if (!firebaseUser) {
+        // Logged out — reset onboarding state
+        setOnboardingCompleted(null);
+      }
+    });
+
+    return () => unsubAuth();
   }, []);
 
-  // 3. Evita que la pantalla parpadee mientras Firebase revisa si hay una sesión guardada.
-  if (loading) {
-    return null; 
+  useEffect(() => {
+    if (!user) return;
+
+    // Listen to user doc for onboarding_completed field
+    const unsubDoc = onSnapshot(
+      doc(db, 'usuarios', user.uid),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          // If field doesn't exist yet (old accounts), treat as completed
+          setOnboardingCompleted(data.onboarding_completed ?? true);
+        } else {
+          setOnboardingCompleted(null);
+        }
+      },
+      (e) => {
+        if (e.code !== 'permission-denied') console.error(e);
+        // On error default to completed to avoid stuck state
+        setOnboardingCompleted(true);
+      }
+    );
+
+    return () => unsubDoc();
+  }, [user]);
+
+  // Show spinner while auth state is resolving
+  if (user === undefined) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={C.accentIndigo} />
+      </View>
+    );
+  }
+
+  // Show spinner while Firestore doc is loading (user is logged in but we don't know onboarding state yet)
+  if (user && onboardingCompleted === null) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={C.accentIndigo} />
+      </View>
+    );
   }
 
   return (
     <NavigationContainer>
-      {/* 4. Le pasamos el estado real de Firebase al navegador */}
-      <AppNavigator user={user} />
+      <AppNavigator user={user} onboardingCompleted={onboardingCompleted} />
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    backgroundColor: C.bgBase,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

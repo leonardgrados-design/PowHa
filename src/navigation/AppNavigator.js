@@ -4,13 +4,13 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Home, BarChart2, Bell, User } from 'lucide-react-native';
 
-// ── Screen imports — verify these paths match your project structure ──────────
 import LoginScreen         from '../screens/LoginScreen';
 import HomeScreen          from '../screens/HomeScreen';
 import AddHabitScreen      from '../screens/AddHabitScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import StatusScreen        from '../screens/StatusScreen';
 import ProfileScreen       from '../screens/ProfileScreen';
+import OnboardingScreen    from '../screens/OnboardingScreen';
 
 import { C, R } from '../theme';
 
@@ -39,7 +39,7 @@ function TabIcon({ Icon, focused }) {
   );
 }
 
-// ─── Center add button ────────────────────────────────────────────────────────
+// ─── Add button ───────────────────────────────────────────────────────────────
 function AddButton({ focused }) {
   const scale  = useRef(new Animated.Value(1)).current;
   const rotate = useRef(new Animated.Value(0)).current;
@@ -62,53 +62,45 @@ function AddButton({ focused }) {
   );
 }
 
-// ─── Main tab navigator ───────────────────────────────────────────────────────
+// ─── Main tabs ────────────────────────────────────────────────────────────────
 function MainTabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={{
-        headerShown:    false,
+        headerShown:     false,
         tabBarShowLabel: false,
-        tabBarStyle:    styles.tabBar,
+        tabBarStyle:     styles.tabBar,
       }}
     >
-      <Tab.Screen
-        name="Inicio"
-        component={HomeScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon Icon={Home}     focused={focused} /> }}
-      />
-      <Tab.Screen
-        name="Estadisticas"
-        component={StatusScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon Icon={BarChart2} focused={focused} /> }}
-      />
-      <Tab.Screen
-        name="Agregar"
-        component={AddHabitScreen}
-        options={{ tabBarIcon: ({ focused }) => <AddButton focused={focused} /> }}
-      />
-      <Tab.Screen
-        name="Notificaciones"
-        component={NotificationsScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon Icon={Bell} focused={focused} /> }}
-      />
-      <Tab.Screen
-        name="Perfil"
-        component={ProfileScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon Icon={User} focused={focused} /> }}
-      />
+      <Tab.Screen name="Inicio"         component={HomeScreen}          options={{ tabBarIcon: ({ focused }) => <TabIcon Icon={Home}     focused={focused} /> }} />
+      <Tab.Screen name="Estadisticas"   component={StatusScreen}        options={{ tabBarIcon: ({ focused }) => <TabIcon Icon={BarChart2} focused={focused} /> }} />
+      <Tab.Screen name="Agregar"        component={AddHabitScreen}      options={{ tabBarIcon: ({ focused }) => <AddButton focused={focused} /> }} />
+      <Tab.Screen name="Notificaciones" component={NotificationsScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon Icon={Bell}     focused={focused} /> }} />
+      <Tab.Screen name="Perfil"         component={ProfileScreen}       options={{ tabBarIcon: ({ focused }) => <TabIcon Icon={User}     focused={focused} /> }} />
     </Tab.Navigator>
   );
 }
 
 // ─── Root navigator ───────────────────────────────────────────────────────────
-export default function AppNavigator({ user }) {
+// Props:
+//   user                — Firebase Auth user object (null if not logged in)
+//   onboardingCompleted — boolean from Firestore, null while loading
+export default function AppNavigator({ user, onboardingCompleted }) {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {user ? (
+      {!user ? (
+        // Not logged in → Login
+        <Stack.Screen name="Login" component={LoginScreen} options={{ animationEnabled: false }} />
+      ) : onboardingCompleted === false ? (
+        // Logged in but onboarding not done → Onboarding
+        <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ animationEnabled: false }} />
+      ) : onboardingCompleted === true ? (
+        // Logged in + onboarding done → Main app
         <Stack.Screen name="MainTabs" component={MainTabNavigator} options={{ animationEnabled: false }} />
       ) : (
-        <Stack.Screen name="Login"    component={LoginScreen}      options={{ animationEnabled: false }} />
+        // onboardingCompleted === null → still loading, show nothing (App.js handles spinner)
+        // This case shouldn't render but stack needs at least one screen
+        <Stack.Screen name="MainTabs" component={MainTabNavigator} options={{ animationEnabled: false }} />
       )}
     </Stack.Navigator>
   );
@@ -125,18 +117,9 @@ const styles = StyleSheet.create({
     elevation:       0,
     shadowOpacity:   0,
   },
-  tabIconWrap: { alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 2 },
-  tabDot:      { width: 4, height: 4, borderRadius: 2, backgroundColor: C.accentIndigo },
-  addButton: {
-    width: 52, height: 52, borderRadius: R.lg,
-    backgroundColor: C.bgCard,
-    borderWidth: 1.5, borderColor: C.bgIndigoL,
-    alignItems: 'center', justifyContent: 'center',
-    marginTop: -16,
-    shadowColor: C.accentIndigo,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
-  },
+  tabIconWrap:     { alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 2 },
+  tabDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: C.accentIndigo },
+  addButton:       { width: 52, height: 52, borderRadius: R.lg, backgroundColor: C.bgCard, borderWidth: 1.5, borderColor: C.bgIndigoL, alignItems: 'center', justifyContent: 'center', marginTop: -16, shadowColor: C.accentIndigo, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
   addButtonActive: { backgroundColor: C.accentIndigo, borderColor: C.accentIndigo, shadowOpacity: 0.5 },
   addButtonIcon:   { fontSize: 28, color: C.accentIndigo, fontWeight: '300', lineHeight: 32, marginTop: -1 },
 });

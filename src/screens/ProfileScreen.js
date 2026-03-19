@@ -17,6 +17,7 @@ import { auth, db, storage } from '../config/firebase';
 import { signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider, deleteUser } from 'firebase/auth';
 import { doc, onSnapshot, updateDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { C, S, R, F, common } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 import { cancelAllNotifications, scheduleAllHabits } from '../services/NotificationService';
 
 // ─── Avatars ──────────────────────────────────────────────────────────────────
@@ -79,7 +80,7 @@ function BottomModal({ visible, onClose, title, children }) {
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: S.lg }}>
             <Text style={common.modalTitle}>{title}</Text>
             <TouchableOpacity onPress={onClose} style={common.modalClose}>
-              <X size={18} color={C.textMuted} />
+              <X size={18} color={theme.textMuted} />
             </TouchableOpacity>
           </View>
           {children}
@@ -92,23 +93,23 @@ function BottomModal({ visible, onClose, title, children }) {
 function OptionRow({ icon, label, onPress, right, danger }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7}
-      style={[common.optionRow, danger && { backgroundColor: C.bgRed }]}>
+      style={[common.optionRow, danger && { backgroundColor: theme.bgRed }]}>
       <View style={[common.optionIcon, danger && { backgroundColor: '#2D0808' }]}>{icon}</View>
       <Text style={[common.optionLabel, danger && { color: C.accentRed }]}>{label}</Text>
-      {right !== undefined ? right : <ChevronRight size={16} color={C.textMuted} />}
+      {right !== undefined ? right : <ChevronRight size={16} color={theme.textMuted} />}
     </TouchableOpacity>
   );
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
+  const { isDark, theme, toggleTheme } = useTheme();
   const [userData,       setUserData]       = useState(null);
   const [loading,        setLoading]        = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [avatarId,       setAvatarId]       = useState('a1');
   const [photoUrl,       setPhotoUrl]       = useState(null);
   const [notifEnabled,   setNotifEnabled]   = useState(true);
-  const [darkMode,       setDarkMode]       = useState(true);
 
   const [showAvatarPicker,  setShowAvatarPicker]  = useState(false);
   const [showEditUsername,  setShowEditUsername]  = useState(false);
@@ -142,7 +143,6 @@ export default function ProfileScreen() {
         if (d.avatar_id != null)     setAvatarId(d.avatar_id);
         if (d.photo_url != null)     setPhotoUrl(d.photo_url);
         if (d.notif_enabled != null) setNotifEnabled(d.notif_enabled);
-        if (d.dark_mode != null)     setDarkMode(d.dark_mode);
       }
       setLoading(false);
       Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }).start();
@@ -161,15 +161,8 @@ export default function ProfileScreen() {
     } catch (e) { console.error(e); }
   };
 
-  const toggleDark = async (val) => {
-    setDarkMode(val);
-    try {
-      await updateDoc(userRef(), { dark_mode: val });
-    } catch (e) {
-      console.error(e);
-      setDarkMode(!val);
-    }
-  };
+  // Dark mode handled by ThemeContext — toggleTheme updates Firestore + local state
+  const toggleDark = (val) => toggleTheme(val);
 
   // ── Upload photo ──────────────────────────────────────────────────────────
   // Hermes (React Native JS engine) does NOT support Blob from ArrayBuffer,
@@ -431,18 +424,18 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bgBase} />
+    <SafeAreaView style={[styles.root, { backgroundColor: theme.bgBase }]}>
+      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bgBase} />
       <Animated.ScrollView style={{ opacity: fadeAnim }} showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}>
 
         {/* Hero */}
         <View style={styles.hero}>
           {uploadingPhoto ? (
-            <View style={{ width: 96, height: 96, borderRadius: 27, backgroundColor: C.bgCard,
+            <View style={{ width: 96, height: 96, borderRadius: 27, backgroundColor: theme.bgCard,
               alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.accentIndigo }}>
               <ActivityIndicator color={C.accentIndigo} />
-              <Text style={{ fontSize: 10, color: C.textMuted, marginTop: 4 }}>Subiendo...</Text>
+              <Text style={{ fontSize: 10, color: theme.textMuted, marginTop: 4 }}>Subiendo...</Text>
             </View>
           ) : (
             <AvatarDisplay avatarId={avatarId} photoUrl={photoUrl} size={96} onPress={() => setShowAvatarPicker(true)} />
@@ -456,21 +449,21 @@ export default function ProfileScreen() {
             <View style={common.xpBarBg}>
               <View style={[common.xpBarFill, { width: `${xpPct * 100}%` }]} />
             </View>
-            <Text style={{ fontSize: F.caption, color: C.textMuted, minWidth: 50 }}>{xp % 50}/50 XP</Text>
+            <Text style={{ fontSize: F.caption, color: theme.textMuted, minWidth: 50 }}>{xp % 50}/50 XP</Text>
           </View>
         </View>
 
         {/* Stats */}
         <View style={styles.statsStrip}>
           {[
-            { val: xp,                               label: 'XP total', color: C.accentIndigoL },
+            { val: xp,                               label: 'XP total', color: theme.accentIndigoL },
             { val: `${userData.racha_actual || 0}🔥`, label: 'Racha',   color: C.accentAmber  },
             { val: nivel,                             label: 'Nivel',    color: C.accentGreen   },
           ].map((s, i, arr) => (
             <React.Fragment key={i}>
               <View style={{ flex: 1, alignItems: 'center' }}>
                 <Text style={{ fontSize: F.h3, fontWeight: '800', letterSpacing: -0.5, color: s.color }}>{s.val}</Text>
-                <Text style={{ fontSize: F.caption, color: C.textMuted, marginTop: 3 }}>{s.label}</Text>
+                <Text style={{ fontSize: F.caption, color: theme.textMuted, marginTop: 3 }}>{s.label}</Text>
               </View>
               {i < arr.length - 1 && <View style={{ width: 0.5, backgroundColor: C.borderDefault }} />}
             </React.Fragment>
@@ -482,21 +475,21 @@ export default function ProfileScreen() {
         <View style={common.group}>
           <OptionRow icon={<Camera size={18} color={C.accentIndigo} />} label="Cambiar avatar" onPress={() => setShowAvatarPicker(true)} />
           <View style={common.divider} />
-          <OptionRow icon={<Edit3 size={18} color={C.textSecondary} />} label="Editar nombre de usuario"
+          <OptionRow icon={<Edit3 size={18} color={theme.textSecondary} />} label="Editar nombre de usuario"
             onPress={() => { setNewUsername(userData.username || ''); setUsernameErr(''); setShowEditUsername(true); }} />
           <View style={common.divider} />
-          <OptionRow icon={<Lock size={18} color={C.textSecondary} />} label="Cambiar contraseña"
+          <OptionRow icon={<Lock size={18} color={theme.textSecondary} />} label="Cambiar contraseña"
             onPress={() => { setCurrentPass(''); setNewPass(''); setConfirmPass(''); setPassErr(''); setShowChangePass(true); }} />
         </View>
 
         {/* Settings */}
         <Text style={styles.sectionTitle}>Configuración</Text>
         <View style={common.group}>
-          <OptionRow icon={<Bell size={18} color={C.textSecondary} />} label="Notificaciones"
-            right={<Switch value={notifEnabled} onValueChange={toggleNotif} trackColor={{ false: C.bgElevated, true: C.accentIndigo }} thumbColor="#fff" />} />
+          <OptionRow icon={<Bell size={18} color={theme.textSecondary} />} label="Notificaciones"
+            right={<Switch value={notifEnabled} onValueChange={toggleNotif} trackColor={{ false: theme.bgElevated, true: C.accentIndigo }} thumbColor="#fff" />} />
           <View style={common.divider} />
-          <OptionRow icon={<Moon size={18} color={C.textSecondary} />} label="Modo oscuro"
-            right={<Switch value={darkMode} onValueChange={toggleDark} trackColor={{ false: C.bgElevated, true: C.accentIndigo }} thumbColor="#fff" />} />
+          <OptionRow icon={<Moon size={18} color={theme.textSecondary} />} label="Modo oscuro"
+            right={<Switch value={isDark} onValueChange={toggleDark} trackColor={{ false: theme.bgElevated, true: theme.accentIndigo }} thumbColor="#fff" />} />
         </View>
 
         {/* Data */}
@@ -511,7 +504,7 @@ export default function ProfileScreen() {
         {/* Privacy */}
         <Text style={styles.sectionTitle}>Privacidad</Text>
         <View style={common.group}>
-          <OptionRow icon={<Shield size={18} color={C.textSecondary} />} label="Política de privacidad" onPress={() => setShowPrivacy(true)} />
+          <OptionRow icon={<Shield size={18} color={theme.textSecondary} />} label="Política de privacidad" onPress={() => setShowPrivacy(true)} />
         </View>
 
         <TouchableOpacity style={common.dangerBtn} onPress={handleLogout}>
@@ -524,25 +517,25 @@ export default function ProfileScreen() {
       {/* ── AVATAR PICKER ── */}
       <BottomModal visible={showAvatarPicker} onClose={() => setShowAvatarPicker(false)} title="Elige tu avatar">
         <TouchableOpacity style={styles.photoBtn} onPress={handleTakePhoto}>
-          <View style={[common.optionIcon, { backgroundColor: C.bgIndigo, width: 44, height: 44 }]}>
+          <View style={[common.optionIcon, { backgroundColor: theme.bgIndigo, width: 44, height: 44 }]}>
             <Camera size={20} color={C.accentIndigo} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.photoBtnTitle}>Tomar foto</Text>
             <Text style={styles.photoBtnSub}>Usar la cámara ahora</Text>
           </View>
-          <ChevronRight size={16} color={C.textMuted} />
+          <ChevronRight size={16} color={theme.textMuted} />
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.photoBtn, { marginTop: S.sm }]} onPress={handlePickFromGallery}>
-          <View style={[common.optionIcon, { backgroundColor: C.bgIndigo, width: 44, height: 44 }]}>
+          <View style={[common.optionIcon, { backgroundColor: theme.bgIndigo, width: 44, height: 44 }]}>
             <ImagePlus size={20} color={C.accentIndigo} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.photoBtnTitle}>Elegir de galería</Text>
             <Text style={styles.photoBtnSub}>Se guarda en la nube</Text>
           </View>
-          <ChevronRight size={16} color={C.textMuted} />
+          <ChevronRight size={16} color={theme.textMuted} />
         </TouchableOpacity>
 
         <Text style={styles.orDivider}>— o elige un personaje —</Text>
@@ -574,9 +567,9 @@ export default function ProfileScreen() {
       <BottomModal visible={showEditUsername} onClose={() => setShowEditUsername(false)} title="Editar nombre">
         <Text style={styles.modalDesc}>Tu nombre de usuario es visible para otros.</Text>
         <View style={[common.inputWrap, { marginBottom: usernameErr ? 6 : 20 }]}>
-          <Edit3 size={17} color={C.textMuted} />
+          <Edit3 size={17} color={theme.textMuted} />
           <TextInput style={styles.modalInput} placeholder="Nuevo nombre de usuario"
-            placeholderTextColor={C.textMuted} value={newUsername}
+            placeholderTextColor={theme.textMuted} value={newUsername}
             onChangeText={t => { setNewUsername(t); setUsernameErr(''); }}
             autoCapitalize="none" autoCorrect={false} maxLength={20} />
         </View>
@@ -594,13 +587,13 @@ export default function ProfileScreen() {
           { placeholder: 'Confirmar contraseña', value: confirmPass, setter: setConfirmPass, show: showNew,    toggle: null },
         ].map(({ placeholder, value, setter, show, toggle }, i) => (
           <View key={i} style={[common.inputWrap, { marginBottom: 12 }]}>
-            <Lock size={17} color={C.textMuted} />
-            <TextInput style={styles.modalInput} placeholder={placeholder} placeholderTextColor={C.textMuted}
+            <Lock size={17} color={theme.textMuted} />
+            <TextInput style={styles.modalInput} placeholder={placeholder} placeholderTextColor={theme.textMuted}
               value={value} onChangeText={t => { setter(t); setPassErr(''); }}
               secureTextEntry={!show} autoCapitalize="none" />
             {toggle && (
               <TouchableOpacity onPress={toggle}>
-                {show ? <EyeOff size={17} color={C.textMuted} /> : <Eye size={17} color={C.textMuted} />}
+                {show ? <EyeOff size={17} color={theme.textMuted} /> : <Eye size={17} color={theme.textMuted} />}
               </TouchableOpacity>
             )}
           </View>
@@ -621,22 +614,22 @@ export default function ProfileScreen() {
           <RefreshCw size={18} color={C.accentAmber} />
           <Text style={styles.amberBtnText}>Sí, restablecer</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[common.primaryBtn, { marginTop: S.sm, backgroundColor: C.bgElevated }]}
+        <TouchableOpacity style={[common.primaryBtn, { marginTop: S.sm, backgroundColor: theme.bgElevated }]}
           onPress={() => setShowResetProgress(false)}>
-          <Text style={[common.primaryBtnText, { color: C.textSecondary }]}>Cancelar</Text>
+          <Text style={[common.primaryBtnText, { color: theme.textSecondary }]}>Cancelar</Text>
         </TouchableOpacity>
       </BottomModal>
 
       {/* ── DELETE ACCOUNT ── */}
       <BottomModal visible={showDeleteAccount} onClose={() => setShowDeleteAccount(false)} title="Eliminar cuenta">
-        <View style={[styles.warningBox, { borderColor: C.bgRedL, backgroundColor: C.bgRed }]}>
+        <View style={[styles.warningBox, { borderColor: C.bgRedL, backgroundColor: theme.bgRed }]}>
           <Trash2 size={20} color={C.accentRed} />
           <Text style={[styles.warningText, { color: C.accentRed }]}>Acción permanente. Se eliminarán tu cuenta, hábitos, progreso y foto. No se puede deshacer.</Text>
         </View>
         <Text style={[styles.modalDesc, { marginTop: S.md }]}>Ingresa tu contraseña para confirmar:</Text>
         <View style={[common.inputWrap, { marginBottom: S.md }]}>
-          <Lock size={17} color={C.textMuted} />
-          <TextInput style={styles.modalInput} placeholder="Tu contraseña" placeholderTextColor={C.textMuted}
+          <Lock size={17} color={theme.textMuted} />
+          <TextInput style={styles.modalInput} placeholder="Tu contraseña" placeholderTextColor={theme.textMuted}
             value={deletePass} onChangeText={setDeletePass} secureTextEntry autoCapitalize="none" />
         </View>
         <TouchableOpacity style={common.dangerBtn} onPress={handleDeleteAccount} disabled={deletingAcc}>
@@ -670,29 +663,29 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: C.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
+  root:          { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
   scroll:        { paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: 48 },
   hero:          { alignItems: 'center', marginBottom: S.lg, paddingTop: S.sm },
-  heroName:      { fontSize: F.h2, fontWeight: '800', color: C.textPrimary, marginTop: 14, letterSpacing: -0.3 },
-  heroEmail:     { fontSize: F.label, color: C.textMuted, marginTop: 3, marginBottom: 10 },
+  heroName:      { fontSize: F.h2, fontWeight: '800', color: theme.textPrimary, marginTop: 14, letterSpacing: -0.3 },
+  heroEmail:     { fontSize: F.label, color: theme.textMuted, marginTop: 3, marginBottom: 10 },
   heroXpRow:     { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginTop: S.sm, width: '70%' },
-  statsStrip:    { flexDirection: 'row', backgroundColor: C.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: C.borderDefault, paddingVertical: S.md, marginBottom: 28 },
-  sectionTitle:  { fontSize: F.caption, fontWeight: '700', color: C.textMuted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginTop: 4 },
-  photoBtn:      { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.bgElevated, borderRadius: R.lg, borderWidth: 0.5, borderColor: C.borderStrong, padding: 14 },
-  photoBtnTitle: { fontSize: F.body, fontWeight: '600', color: C.textPrimary },
-  photoBtnSub:   { fontSize: F.small, color: C.textMuted, marginTop: 2 },
-  orDivider:     { textAlign: 'center', fontSize: F.small, color: C.textMuted, marginVertical: S.md },
+  statsStrip:    { flexDirection: 'row', backgroundColor: theme.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: theme.borderDefault, paddingVertical: S.md, marginBottom: 28 },
+  sectionTitle:  { fontSize: F.caption, fontWeight: '700', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginTop: 4 },
+  photoBtn:      { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: theme.bgElevated, borderRadius: R.lg, borderWidth: 0.5, borderColor: theme.borderStrong, padding: 14 },
+  photoBtnTitle: { fontSize: F.body, fontWeight: '600', color: theme.textPrimary },
+  photoBtnSub:   { fontSize: F.small, color: theme.textMuted, marginTop: 2 },
+  orDivider:     { textAlign: 'center', fontSize: F.small, color: theme.textMuted, marginVertical: S.md },
   avatarGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: S.sm, justifyContent: 'center' },
   avatarGridItem:{ alignItems: 'center', padding: 6, borderRadius: R.lg, borderWidth: 1.5, borderColor: 'transparent', position: 'relative' },
   avatarGridFace:{ width: 60, height: 60, borderRadius: R.lg, alignItems: 'center', justifyContent: 'center' },
   avatarCheckBadge: { position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: 8, backgroundColor: C.accentIndigo, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: C.bgCard },
-  modalDesc:     { fontSize: F.label, color: C.textMuted, marginBottom: S.md, lineHeight: 20 },
-  modalInput:    { flex: 1, fontSize: F.body, color: C.textPrimary, fontWeight: '500' },
+  modalDesc:     { fontSize: F.label, color: theme.textMuted, marginBottom: S.md, lineHeight: 20 },
+  modalInput:    { flex: 1, fontSize: F.body, color: theme.textPrimary, fontWeight: '500' },
   fieldError:    { fontSize: F.small, color: C.accentRed, marginBottom: S.sm, marginLeft: 4 },
-  warningBox:    { flexDirection: 'row', gap: S.sm, backgroundColor: C.bgAmber, borderWidth: 0.5, borderColor: C.bgAmberL, borderRadius: R.md, padding: 14, alignItems: 'flex-start' },
+  warningBox:    { flexDirection: 'row', gap: S.sm, backgroundColor: theme.bgAmber, borderWidth: 0.5, borderColor: C.bgAmberL, borderRadius: R.md, padding: 14, alignItems: 'flex-start' },
   warningText:   { flex: 1, fontSize: F.small, color: C.accentAmber, lineHeight: 18 },
-  amberBtn:      { height: 52, backgroundColor: C.bgAmber, borderWidth: 0.5, borderColor: C.bgAmberL, borderRadius: R.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: S.sm },
+  amberBtn:      { height: 52, backgroundColor: theme.bgAmber, borderWidth: 0.5, borderColor: C.bgAmberL, borderRadius: R.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: S.sm },
   amberBtnText:  { color: C.accentAmber, fontWeight: '700', fontSize: F.body },
-  privacyTitle:  { fontSize: F.label, fontWeight: '700', color: C.textPrimary, marginBottom: 4 },
-  privacyBody:   { fontSize: F.small, color: C.textSecondary, lineHeight: 20 },
+  privacyTitle:  { fontSize: F.label, fontWeight: '700', color: theme.textPrimary, marginBottom: 4 },
+  privacyBody:   { fontSize: F.small, color: theme.textSecondary, lineHeight: 20 },
 });

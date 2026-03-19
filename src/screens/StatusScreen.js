@@ -4,6 +4,7 @@ import { Flame, TrendingUp, Target, Activity, Zap, Award } from 'lucide-react-na
 
 import { auth, db } from '../config/firebase';
 import { doc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import { useTheme } from '../context/ThemeContext';
 import { C, S, R, F, common } from '../theme';
 
 function StatCard({ label, value, sub, color = C.accentIndigo, icon }) {
@@ -30,8 +31,8 @@ function ActivityBars({ data, labels }) {
             <View style={styles.barTrack}>
               <View style={[styles.barFill, { height: `${Math.max((val / max) * 100, val > 0 ? 8 : 0)}%`, backgroundColor: isToday ? C.accentIndigo : val > 0 ? C.accentIndigoL + 'AA' : C.bgElevated }]} />
             </View>
-            {val > 0 && <Text style={[styles.barCount, isToday && { color: C.accentIndigoL }]}>{val}</Text>}
-            <Text style={[styles.barLabel, isToday && { color: C.textSecondary }]}>{labels[i]}</Text>
+            {val > 0 && <Text style={[styles.barCount, isToday && { color: theme.accentIndigoL }]}>{val}</Text>}
+            <Text style={[styles.barLabel, isToday && { color: theme.textSecondary }]}>{labels[i]}</Text>
           </View>
         );
       })}
@@ -52,6 +53,7 @@ function StreakRow({ streak }) {
 }
 
 export default function StatusScreen() {
+  const { theme } = useTheme();
   const [loading,   setLoading]   = useState(true);
   const [userData,  setUserData]  = useState({ xp_total: 0, nivel: 1, racha_actual: 0 });
   const [chartData, setChartData] = useState({ labels: [], data: [] });
@@ -108,14 +110,14 @@ export default function StatusScreen() {
     return (
       <SafeAreaView style={[styles.root, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={C.accentIndigo} />
-        <Text style={{ marginTop: 12, color: C.textMuted, fontSize: F.label }}>Calculando métricas...</Text>
+        <Text style={{ marginTop: 12, color: theme.textMuted, fontSize: F.label }}>Calculando métricas...</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bgBase} />
+    <SafeAreaView style={[styles.root, { backgroundColor: theme.bgBase }]}>
+      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bgBase} />
       <Animated.ScrollView style={{ opacity: fadeAnim }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
         <Text style={styles.pageTitle}>Tu Progreso</Text>
@@ -134,7 +136,7 @@ export default function StatusScreen() {
             <View style={common.xpBarBg}>
               <View style={[common.xpBarFill, { width: `${xpPct * 100}%` }]} />
             </View>
-            <Text style={{ fontSize: F.caption, color: C.textMuted, marginTop: 5 }}>{xp % 50}/50 XP → Nivel {nivel + 1}</Text>
+            <Text style={{ fontSize: F.caption, color: theme.textMuted, marginTop: 5 }}>{xp % 50}/50 XP → Nivel {nivel + 1}</Text>
           </View>
           <View style={[common.avatarCircle, { width: 72, height: 72, borderRadius: R.lg }]}>
             <Text style={{ fontSize: 36 }}>{levelEmoji}</Text>
@@ -171,8 +173,8 @@ export default function StatusScreen() {
           </View>
           {hasActivity ? <ActivityBars data={chartData.data} labels={chartData.labels} /> : (
             <View style={{ height: 120, alignItems: 'center', justifyContent: 'center', gap: S.sm }}>
-              <Activity size={32} color={C.textMuted} strokeWidth={1.5} />
-              <Text style={{ fontSize: F.label, color: C.textMuted }}>Aún no hay actividad reciente.</Text>
+              <Activity size={32} color={theme.textMuted} strokeWidth={1.5} />
+              <Text style={{ fontSize: F.label, color: theme.textMuted }}>Aún no hay actividad reciente.</Text>
             </View>
           )}
         </View>
@@ -186,8 +188,8 @@ export default function StatusScreen() {
           {[
             { label: 'Hábitos en seguimiento', value: stats.totalHabitos,       color: C.accentTeal    },
             { label: 'Completados esta semana', value: stats.completadosReciente, color: C.accentGreen  },
-            { label: 'XP acumulada',            value: xp,                       color: C.accentIndigoL },
-            { label: 'Tendencia',               value: tendencia,                color: C.textPrimary   },
+            { label: 'XP acumulada',            value: xp,                       color: theme.accentIndigoL },
+            { label: 'Tendencia',               value: tendencia,                color: theme.textPrimary   },
           ].map((row, i, arr) => (
             <React.Fragment key={i}>
               <View style={styles.analysisRow}>
@@ -206,26 +208,26 @@ export default function StatusScreen() {
 }
 
 const styles = StyleSheet.create({
-  root:         { flex: 1, backgroundColor: C.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
+  root:         { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
   scroll:       { paddingHorizontal: S.lg, paddingBottom: 48, paddingTop: S.lg },
-  pageTitle:    { fontSize: F.h1, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.5, marginBottom: S.lg },
-  heroXPNum:    { fontSize: 32, fontWeight: '800', color: C.textPrimary, letterSpacing: -1 },
-  heroXPSub:    { fontSize: F.h4, fontWeight: '600', color: C.textMuted },
-  statCard:     { flex: 1, backgroundColor: C.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: C.borderDefault, padding: 14, alignItems: 'center' },
+  pageTitle:    { fontSize: F.h1, fontWeight: '800', color: theme.textPrimary, letterSpacing: -0.5, marginBottom: S.lg },
+  heroXPNum:    { fontSize: 32, fontWeight: '800', color: theme.textPrimary, letterSpacing: -1 },
+  heroXPSub:    { fontSize: F.h4, fontWeight: '600', color: theme.textMuted },
+  statCard:     { flex: 1, backgroundColor: theme.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: theme.borderDefault, padding: 14, alignItems: 'center' },
   statIconWrap: { width: 32, height: 32, borderRadius: R.md, alignItems: 'center', justifyContent: 'center', marginBottom: S.sm },
   statValue:    { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
-  statLabel:    { fontSize: F.caption, color: C.textMuted, marginTop: 2, textAlign: 'center' },
-  statSub:      { fontSize: 10, color: C.textMuted, textAlign: 'center' },
+  statLabel:    { fontSize: F.caption, color: theme.textMuted, marginTop: 2, textAlign: 'center' },
+  statSub:      { fontSize: 10, color: theme.textMuted, textAlign: 'center' },
   cardHeader:   { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginBottom: 14 },
-  cardTitle:    { fontSize: F.body, fontWeight: '700', color: C.textPrimary },
-  cardSub:      { fontSize: F.label, color: C.textMuted, marginTop: S.sm, lineHeight: 18 },
+  cardTitle:    { fontSize: F.body, fontWeight: '700', color: theme.textPrimary },
+  cardSub:      { fontSize: F.label, color: theme.textMuted, marginTop: S.sm, lineHeight: 18 },
   barsContainer:{ flexDirection: 'row', alignItems: 'flex-end', height: 120, gap: S.sm },
   barCol:       { flex: 1, alignItems: 'center', gap: 4 },
   barTrack:     { flex: 1, width: '100%', justifyContent: 'flex-end' },
   barFill:      { width: '100%', borderRadius: 4 },
-  barCount:     { fontSize: 10, color: C.textMuted, fontWeight: '600' },
-  barLabel:     { fontSize: 10, color: C.textMuted },
+  barCount:     { fontSize: 10, color: theme.textMuted, fontWeight: '600' },
+  barLabel:     { fontSize: 10, color: theme.textMuted },
   analysisRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: S.sm },
-  analysisLabel:{ fontSize: F.label, color: C.textSecondary },
+  analysisLabel:{ fontSize: F.label, color: theme.textSecondary },
   analysisValue:{ fontSize: F.label, fontWeight: '700' },
 });

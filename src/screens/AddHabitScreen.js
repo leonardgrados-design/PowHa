@@ -11,6 +11,7 @@ import {
 
 import { db, auth } from '../config/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useTheme } from '../context/ThemeContext';
 import { C, S, R, F, common } from '../theme';
 import { scheduleHabitNotification, scheduleCompletionReminder, requestNotificationPermissions } from '../services/NotificationService';
 
@@ -61,7 +62,8 @@ function Chip({ label, active, onPress, color = C.accentIndigo, children }) {
   );
 }
 
-export default function AddHabitScreen({ navigation }) {
+export default function AddHabitScreen({
+  const { theme } = useTheme(); navigation }) {
   const [titulo,       setTitulo]       = useState('');
   const [categoria,    setCategoria]    = useState('cuerpo');
   const [horario,      setHorario]      = useState('cualquiera');
@@ -153,13 +155,13 @@ export default function AddHabitScreen({ navigation }) {
                   : FRECUENCIAS.find(f => f.key === frecuencia)?.sub;
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={[styles.root, { backgroundColor: theme.bgBase }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
 
         <View style={common.topBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={common.backBtn}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <ArrowLeft size={22} color={C.textSecondary} />
+            <ArrowLeft size={22} color={theme.textSecondary} />
           </TouchableOpacity>
           <Text style={common.topBarTitle}>Nuevo hábito</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: R.pill, borderWidth: 0.5, borderColor: catColor + '60', backgroundColor: catColor + '18' }}>
@@ -179,7 +181,7 @@ export default function AddHabitScreen({ navigation }) {
                 style={[styles.suggChip, titulo === s.titulo && { borderColor: catColor, backgroundColor: catColor + '18' }]}
                 onPress={() => aplicarSugerencia(s)}>
                 <Text style={{ fontSize: 15 }}>{s.icono}</Text>
-                <Text style={[styles.suggText, titulo === s.titulo && { color: C.textPrimary }]}>{s.titulo}</Text>
+                <Text style={[styles.suggText, titulo === s.titulo && { color: theme.textPrimary }]}>{s.titulo}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -189,9 +191,9 @@ export default function AddHabitScreen({ navigation }) {
           <View style={[common.inputWrap, { marginBottom: 28 }]}>
             <Text style={{ fontSize: 22 }}>{icono}</Text>
             <TextInput ref={inputRef} style={styles.input} placeholder="Ej. Correr 5 km"
-              placeholderTextColor={C.textMuted} value={titulo} onChangeText={setTitulo}
+              placeholderTextColor={theme.textMuted} value={titulo} onChangeText={setTitulo}
               maxLength={40} returnKeyType="done" />
-            {titulo.length > 0 && <Text style={{ fontSize: F.caption, color: C.textMuted }}>{titulo.length}/40</Text>}
+            {titulo.length > 0 && <Text style={{ fontSize: F.caption, color: theme.textMuted }}>{titulo.length}/40</Text>}
           </View>
 
           {/* Category */}
@@ -201,7 +203,7 @@ export default function AddHabitScreen({ navigation }) {
               { key: 'mente',  label: 'Mental', color: C.accentPink, Icon: Brain   }].map(({ key, label, color, Icon }) => (
               <TouchableOpacity key={key} activeOpacity={0.8} onPress={() => setCategoria(key)}
                 style={[styles.catBtn, categoria === key && { borderColor: color, backgroundColor: color + '18' }]}>
-                <Icon size={18} color={categoria === key ? color : C.textMuted} />
+                <Icon size={18} color={categoria === key ? color : theme.textMuted} />
                 <Text style={[styles.catLabel, categoria === key && { color }]}>{label}</Text>
                 {categoria === key && <View style={[styles.catDot, { backgroundColor: color }]} />}
               </TouchableOpacity>
@@ -213,7 +215,7 @@ export default function AddHabitScreen({ navigation }) {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: S.sm, marginBottom: 28 }}>
             {HORARIOS.map(({ key, label, Icon }) => (
               <Chip key={key} label={label} active={horario === key} onPress={() => setHorario(key)} color={C.accentIndigo}>
-                <Icon size={14} color={horario === key ? C.accentIndigo : C.textMuted} style={{ marginRight: 4 }} />
+                <Icon size={14} color={horario === key ? C.accentIndigo : theme.textMuted} style={{ marginRight: 4 }} />
               </Chip>
             ))}
           </View>
@@ -230,7 +232,7 @@ export default function AddHabitScreen({ navigation }) {
                 <Text style={styles.freqHeaderSub}>{freqSub}</Text>
               </View>
             </View>
-            {freqExpanded ? <ChevronUp size={18} color={C.textMuted} /> : <ChevronDown size={18} color={C.textMuted} />}
+            {freqExpanded ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
           </TouchableOpacity>
 
           {freqExpanded && (
@@ -239,10 +241,10 @@ export default function AddHabitScreen({ navigation }) {
                 <TouchableOpacity key={key} activeOpacity={0.8} onPress={() => setFrecuencia(key)}
                   style={[styles.freqOption, frecuencia === key && { backgroundColor: C.accentIndigo + '12' }]}>
                   <View style={[styles.freqOptionIcon, frecuencia === key && { backgroundColor: C.accentIndigo + '30' }]}>
-                    <Icon size={15} color={frecuencia === key ? C.accentIndigoL : C.textMuted} />
+                    <Icon size={15} color={frecuencia === key ? C.accentIndigoL : theme.textMuted} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.freqOptionLabel, frecuencia === key && { color: C.accentIndigoL }]}>{label}</Text>
+                    <Text style={[styles.freqOptionLabel, frecuencia === key && { color: theme.accentIndigoL }]}>{label}</Text>
                     <Text style={styles.freqOptionSub}>{sub}</Text>
                   </View>
                   {frecuencia === key && (
@@ -276,7 +278,7 @@ export default function AddHabitScreen({ navigation }) {
                     </TouchableOpacity>
                     <View style={{ alignItems: 'center', minWidth: 60 }}>
                       <Text style={styles.stepValue}>{cadaXDias}</Text>
-                      <Text style={{ fontSize: F.small, color: C.textMuted, marginTop: -2 }}>días</Text>
+                      <Text style={{ fontSize: F.small, color: theme.textMuted, marginTop: -2 }}>días</Text>
                     </View>
                     <TouchableOpacity style={styles.stepBtn} onPress={() => setCadaXDias(v => Math.min(30, v + 1))}>
                       <Text style={styles.stepBtnText}>+</Text>
@@ -301,7 +303,7 @@ export default function AddHabitScreen({ navigation }) {
         </ScrollView>
 
         {/* Save */}
-        <View style={{ paddingHorizontal: S.lg, paddingVertical: S.md, borderTopWidth: 0.5, borderTopColor: C.borderDefault, backgroundColor: C.bgBase }}>
+        <View style={{ paddingHorizontal: S.lg, paddingVertical: S.md, borderTopWidth: 0.5, borderTopColor: theme.borderDefault, backgroundColor: theme.bgBase }}>
           <Animated.View style={{ transform: [{ scale: btnScale }] }}>
             <TouchableOpacity onPress={crearHabit} disabled={!canSave} activeOpacity={1}
               onPressIn={() => Animated.spring(btnScale, { toValue: 0.96, useNativeDriver: true, tension: 200 }).start()}
@@ -309,8 +311,8 @@ export default function AddHabitScreen({ navigation }) {
               style={[common.primaryBtn, { backgroundColor: canSave ? C.accentIndigo : C.bgElevated }]}>
               {loading ? <ActivityIndicator color="#fff" /> : (
                 <>
-                  <Zap size={18} color={canSave ? '#fff' : C.textMuted} fill={canSave ? '#fff' : 'none'} />
-                  <Text style={[common.primaryBtnText, !canSave && { color: C.textMuted }]}>Guardar hábito</Text>
+                  <Zap size={18} color={canSave ? '#fff' : theme.textMuted} fill={canSave ? '#fff' : 'none'} />
+                  <Text style={[common.primaryBtnText, !canSave && { color: theme.textMuted }]}>Guardar hábito</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -322,28 +324,28 @@ export default function AddHabitScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  root:            { flex: 1, backgroundColor: C.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
-  input:           { flex: 1, fontSize: F.body, color: C.textPrimary, fontWeight: '500' },
-  suggChip:        { flexDirection: 'row', alignItems: 'center', gap: S.sm, backgroundColor: C.bgCard, borderWidth: 0.5, borderColor: C.borderStrong, paddingHorizontal: 14, paddingVertical: 9, borderRadius: R.pill },
-  suggText:        { fontSize: F.label, color: C.textSecondary, fontWeight: '500' },
-  catBtn:          { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: S.sm, backgroundColor: C.bgCard, borderWidth: 0.5, borderColor: C.borderStrong, borderRadius: R.lg, paddingVertical: S.md },
-  catLabel:        { fontSize: F.body, fontWeight: '700', color: C.textMuted },
+  root:            { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
+  input:           { flex: 1, fontSize: F.body, color: theme.textPrimary, fontWeight: '500' },
+  suggChip:        { flexDirection: 'row', alignItems: 'center', gap: S.sm, backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, paddingHorizontal: 14, paddingVertical: 9, borderRadius: R.pill },
+  suggText:        { fontSize: F.label, color: theme.textSecondary, fontWeight: '500' },
+  catBtn:          { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: S.sm, backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, borderRadius: R.lg, paddingVertical: S.md },
+  catLabel:        { fontSize: F.body, fontWeight: '700', color: theme.textMuted },
   catDot:          { position: 'absolute', bottom: 8, width: 5, height: 5, borderRadius: 3 },
-  freqHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.bgCard, borderWidth: 0.5, borderColor: C.borderStrong, borderRadius: R.lg, padding: 14, marginBottom: S.sm },
+  freqHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, borderRadius: R.lg, padding: 14, marginBottom: S.sm },
   freqIcon:        { width: 36, height: 36, borderRadius: R.md, alignItems: 'center', justifyContent: 'center' },
-  freqHeaderTitle: { fontSize: F.body, fontWeight: '600', color: C.textPrimary },
-  freqHeaderSub:   { fontSize: F.small, color: C.textMuted, marginTop: 1 },
-  freqPanel:       { backgroundColor: C.bgCard, borderWidth: 0.5, borderColor: C.borderStrong, borderRadius: R.lg, overflow: 'hidden', marginBottom: 28 },
+  freqHeaderTitle: { fontSize: F.body, fontWeight: '600', color: theme.textPrimary },
+  freqHeaderSub:   { fontSize: F.small, color: theme.textMuted, marginTop: 1 },
+  freqPanel:       { backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, borderRadius: R.lg, overflow: 'hidden', marginBottom: 28 },
   freqOption:      { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderBottomWidth: 0.5, borderBottomColor: C.borderDefault },
-  freqOptionIcon:  { width: 32, height: 32, borderRadius: S.sm, backgroundColor: C.bgElevated, alignItems: 'center', justifyContent: 'center' },
-  freqOptionLabel: { fontSize: F.label, fontWeight: '600', color: C.textSecondary },
-  freqOptionSub:   { fontSize: F.small, color: C.textMuted, marginTop: 1 },
-  extraPanel:      { padding: 14, borderTopWidth: 0.5, borderTopColor: C.borderDefault },
-  extraLabel:      { fontSize: F.small, color: C.textMuted, fontWeight: '600', marginBottom: S.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
-  dayBtn:          { width: 38, height: 38, borderRadius: R.md, backgroundColor: C.bgElevated, borderWidth: 0.5, borderColor: C.borderStrong, alignItems: 'center', justifyContent: 'center' },
-  dayBtnText:      { fontSize: F.label, fontWeight: '600', color: C.textMuted },
-  stepBtn:         { width: 44, height: 44, borderRadius: 12, backgroundColor: C.bgElevated, borderWidth: 0.5, borderColor: C.borderStrong, alignItems: 'center', justifyContent: 'center' },
-  stepBtnText:     { fontSize: 22, color: C.accentIndigoL, fontWeight: '300', lineHeight: 26 },
-  stepValue:       { fontSize: 32, fontWeight: '800', color: C.textPrimary, letterSpacing: -1 },
-  iconBtn:         { width: 54, height: 54, borderRadius: R.lg, backgroundColor: C.bgCard, borderWidth: 0.5, borderColor: C.borderStrong, alignItems: 'center', justifyContent: 'center' },
+  freqOptionIcon:  { width: 32, height: 32, borderRadius: S.sm, backgroundColor: theme.bgElevated, alignItems: 'center', justifyContent: 'center' },
+  freqOptionLabel: { fontSize: F.label, fontWeight: '600', color: theme.textSecondary },
+  freqOptionSub:   { fontSize: F.small, color: theme.textMuted, marginTop: 1 },
+  extraPanel:      { padding: 14, borderTopWidth: 0.5, borderTopColor: theme.borderDefault },
+  extraLabel:      { fontSize: F.small, color: theme.textMuted, fontWeight: '600', marginBottom: S.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
+  dayBtn:          { width: 38, height: 38, borderRadius: R.md, backgroundColor: theme.bgElevated, borderWidth: 0.5, borderColor: theme.borderStrong, alignItems: 'center', justifyContent: 'center' },
+  dayBtnText:      { fontSize: F.label, fontWeight: '600', color: theme.textMuted },
+  stepBtn:         { width: 44, height: 44, borderRadius: 12, backgroundColor: theme.bgElevated, borderWidth: 0.5, borderColor: theme.borderStrong, alignItems: 'center', justifyContent: 'center' },
+  stepBtnText:     { fontSize: 22, color: theme.accentIndigoL, fontWeight: '300', lineHeight: 26 },
+  stepValue:       { fontSize: 32, fontWeight: '800', color: theme.textPrimary, letterSpacing: -1 },
+  iconBtn:         { width: 54, height: 54, borderRadius: R.lg, backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, alignItems: 'center', justifyContent: 'center' },
 });

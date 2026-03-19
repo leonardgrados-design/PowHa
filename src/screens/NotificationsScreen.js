@@ -4,6 +4,7 @@ import { Bell, BellOff, Clock, CheckCircle2, ChevronRight, Zap } from 'lucide-re
 
 import { auth, db } from '../config/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { useTheme } from '../context/ThemeContext';
 import { C, S, R, F, common, HORARIO_CONFIG } from '../theme';
 
 function NotifCard({ item, onPress, index }) {
@@ -32,20 +33,21 @@ function NotifCard({ item, onPress, index }) {
         <View style={{ flex: 1 }}>
           <Text style={styles.cardTitle} numberOfLines={1}>{item.titulo}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-            <Clock size={11} color={C.textMuted} />
+            <Clock size={11} color={theme.textMuted} />
             <Text style={[styles.metaText, { color: cfg.color }]}>{cfg.label}</Text>
             <View style={styles.metaDot} />
             <Zap size={11} color={C.accentIndigoL} />
             <Text style={styles.metaXP}>+{item.valor_xp || 10} XP</Text>
           </View>
         </View>
-        <ChevronRight size={18} color={C.textMuted} />
+        <ChevronRight size={18} color={theme.textMuted} />
       </TouchableOpacity>
     </Animated.View>
   );
 }
 
-export default function NotificationsScreen({ navigation }) {
+export default function NotificationsScreen({
+  const { theme } = useTheme(); navigation }) {
   const [habits,            setHabits]            = useState([]);
   const [completedTodayIds, setCompletedTodayIds] = useState([]);
   const [loading,           setLoading]           = useState(true);
@@ -112,8 +114,8 @@ export default function NotificationsScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bgBase} />
+    <SafeAreaView style={[styles.root, { backgroundColor: theme.bgBase }]}>
+      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bgBase} />
 
       <Animated.View style={[styles.header, { opacity: headerFade }]}>
         <View>
@@ -125,7 +127,7 @@ export default function NotificationsScreen({ navigation }) {
           </Text>
         </View>
         <View style={{ position: 'relative', marginTop: 4 }}>
-          <Bell size={20} color={pending.length > 0 ? C.accentAmber : C.textMuted} />
+          <Bell size={20} color={pending.length > 0 ? C.accentAmber : theme.textMuted} />
           {pending.length > 0 && (
             <View style={styles.bellBadge}>
               <Text style={styles.bellBadgeText}>{pending.length}</Text>
@@ -156,7 +158,7 @@ export default function NotificationsScreen({ navigation }) {
                 <React.Fragment key={h.id}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: S.sm, padding: 14 }}>
                     <Text style={{ fontSize: 18 }}>{h.icono}</Text>
-                    <Text style={{ flex: 1, fontSize: F.label, color: C.textMuted }}>{h.titulo}</Text>
+                    <Text style={{ flex: 1, fontSize: F.label, color: theme.textMuted }}>{h.titulo}</Text>
                     <CheckCircle2 size={16} color={C.accentGreen} />
                   </View>
                   {i < done.length - 1 && <View style={common.divider} />}
@@ -179,27 +181,27 @@ export default function NotificationsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  root:           { flex: 1, backgroundColor: C.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
+  root:           { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
   header:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: 14 },
-  headerTitle:    { fontSize: F.h1, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.5 },
-  headerSub:      { fontSize: F.label, color: C.textMuted, marginTop: 3 },
+  headerTitle:    { fontSize: F.h1, fontWeight: '800', color: theme.textPrimary, letterSpacing: -0.5 },
+  headerSub:      { fontSize: F.label, color: theme.textMuted, marginTop: 3 },
   bellBadge:      { position: 'absolute', top: -5, right: -6, backgroundColor: C.accentAmber, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   bellBadgeText:  { fontSize: 9, fontWeight: '800', color: '#000' },
   progressWrap:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: S.lg, gap: S.sm, marginBottom: S.sm },
-  progressLabel:  { fontSize: F.caption, color: C.textMuted, minWidth: 40 },
+  progressLabel:  { fontSize: F.caption, color: theme.textMuted, minWidth: 40 },
   listContent:    { paddingHorizontal: S.lg, paddingBottom: 48, paddingTop: 4 },
   groupHeader:    { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginTop: S.lg, marginBottom: S.sm },
   groupDot:       { width: 6, height: 6, borderRadius: 3 },
-  groupLabel:     { fontSize: F.small, fontWeight: '700', color: C.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, flex: 1 },
+  groupLabel:     { fontSize: F.small, fontWeight: '700', color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, flex: 1 },
   groupCount:     { paddingHorizontal: S.sm, paddingVertical: 2, borderRadius: R.pill, borderWidth: 0.5 },
   groupCountText: { fontSize: F.caption, fontWeight: '700' },
-  card:           { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: C.borderDefault, borderLeftWidth: 3, padding: 14, marginBottom: S.sm },
+  card:           { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: theme.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: theme.borderDefault, borderLeftWidth: 3, padding: 14, marginBottom: S.sm },
   iconWrap:       { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  cardTitle:      { fontSize: F.body, fontWeight: '600', color: C.textPrimary },
+  cardTitle:      { fontSize: F.body, fontWeight: '600', color: theme.textPrimary },
   metaText:       { fontSize: F.small, fontWeight: '600' },
-  metaXP:         { fontSize: F.small, color: C.accentIndigoL, fontWeight: '600' },
-  metaDot:        { width: 3, height: 3, borderRadius: 2, backgroundColor: C.textMuted, marginHorizontal: 2 },
+  metaXP:         { fontSize: F.small, color: theme.accentIndigoL, fontWeight: '600' },
+  metaDot:        { width: 3, height: 3, borderRadius: 2, backgroundColor: theme.textMuted, marginHorizontal: 2 },
   emptyWrap:      { flex: 1, alignItems: 'center', paddingHorizontal: 32, paddingTop: 60 },
   emptyIconCircle:{ width: 88, height: 88, borderRadius: 24, backgroundColor: C.accentGreen + '18', borderWidth: 0.5, borderColor: C.accentGreen + '40', alignItems: 'center', justifyContent: 'center', marginBottom: S.lg },
-  emptyTitle:     { fontSize: F.h3, fontWeight: '800', color: C.textPrimary, marginBottom: S.sm },
+  emptyTitle:     { fontSize: F.h3, fontWeight: '800', color: theme.textPrimary, marginBottom: S.sm },
 });

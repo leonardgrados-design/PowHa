@@ -46,8 +46,8 @@ function NotifCard({ item, onPress, index }) {
   );
 }
 
-export default function NotificationsScreen({
-  const { theme } = useTheme(); navigation }) {
+export default function NotificationsScreen({ navigation }) {
+  const { theme } = useTheme();
   const [habits,            setHabits]            = useState([]);
   const [completedTodayIds, setCompletedTodayIds] = useState([]);
   const [loading,           setLoading]           = useState(true);

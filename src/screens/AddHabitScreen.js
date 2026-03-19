@@ -62,8 +62,8 @@ function Chip({ label, active, onPress, color = C.accentIndigo, children }) {
   );
 }
 
-export default function AddHabitScreen({
-  const { theme } = useTheme(); navigation }) {
+export default function AddHabitScreen({ navigation }) {
+  const { theme } = useTheme();
   const [titulo,       setTitulo]       = useState('');
   const [categoria,    setCategoria]    = useState('cuerpo');
   const [horario,      setHorario]      = useState('cualquiera');

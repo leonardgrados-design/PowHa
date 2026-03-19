@@ -71,8 +71,8 @@ function HabitChip({ habit, selected, onPress }) {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export default function OnboardingScreen({
-  const { theme } = useTheme(); navigation }) {
+export default function OnboardingScreen({ navigation }) {
+  const { theme } = useTheme();
   const [step,     setStep]     = useState(0); // 0-2 = slides, 3 = habits
   const [selected, setSelected] = useState([]);
   const [saving,   setSaving]   = useState(false);

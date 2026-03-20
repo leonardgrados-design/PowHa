@@ -1,8 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const firebaseConfig = {
   apiKey:            "AIzaSyBhLVBNoyqu68yRpO5W7IQU1E2fxcOlqXk",
@@ -16,10 +15,22 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Auth con persistencia real — la sesión sobrevive cierres de app
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(ReactNativeAsyncStorage),
-});
+// ── Auth: use AsyncStorage persistence on native, default (indexedDB) on web ──
+let auth;
 
+if (Platform.OS === 'web') {
+  // Web: Firebase handles persistence automatically via indexedDB
+  const { getAuth } = require('firebase/auth');
+  auth = getAuth(app);
+} else {
+  // Native (iOS/Android): persist session across app restarts
+  const { initializeAuth, getReactNativePersistence } = require('firebase/auth');
+  const ReactNativeAsyncStorage = require('@react-native-async-storage/async-storage').default;
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+  });
+}
+
+export { auth };
 export const db      = getFirestore(app);
 export const storage = getStorage(app);

@@ -7,7 +7,7 @@ import {
 import {
   Edit3, Lock, Bell, Moon, RefreshCw, Shield,
   LogOut, Camera, ChevronRight, Check, X,
-  ImagePlus, Eye, EyeOff, Trash2, AlertTriangle,
+  ImagePlus, Eye, EyeOff, Trash2, AlertTriangle, Trophy,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 // FIX: import from legacy path for SDK 54+
@@ -133,7 +133,7 @@ function OptionRow({ icon, label, onPress, right, danger }) {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }) {
   const { isDark, theme, toggleTheme } = useTheme();
   const styles = getStyles(theme);
   const [userData,       setUserData]       = useState(null);
@@ -506,6 +506,9 @@ export default function ProfileScreen() {
         <Text style={styles.sectionTitle}>Cuenta</Text>
         <View style={common.group}>
           <OptionRow icon={<Camera size={18} color={C.accentIndigo} />} label="Cambiar avatar" onPress={() => setShowAvatarPicker(true)} />
+          <View style={common.divider} />
+          <OptionRow icon={<Trophy size={18} color={C.accentAmber} />} label="Logros y badges"
+            onPress={() => navigation.navigate('Achievements')} />
           <View style={common.divider} />
           <OptionRow icon={<Edit3 size={18} color={theme.textSecondary} />} label="Editar nombre de usuario"
             onPress={() => { setNewUsername(userData.username || ''); setUsernameErr(''); setShowEditUsername(true); }} />

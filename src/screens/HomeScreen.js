@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet, Text, View, ScrollView, SafeAreaView,
   Platform, StatusBar, TouchableOpacity,
-  ActivityIndicator, Alert, Animated,
+  ActivityIndicator, Alert, Animated, Dimensions,
 } from 'react-native';
 import { Check, Flame, Inbox, CheckCircle2, Zap } from 'lucide-react-native';
 
@@ -57,6 +57,55 @@ const getStyles = (theme) => StyleSheet.create({
   checkCircleDone: { backgroundColor: C.accentGreen, borderColor: C.accentGreen },
 });
 
+
+
+// ─── Confetti ─────────────────────────────────────────────────────────────────
+const CONFETTI_COLORS = ['#6366F1','#10B981','#F59E0B','#EC4899','#14B8A6','#818CF8','#34D399'];
+const SCREEN_W = Dimensions.get('window').width;
+
+function ConfettiPiece({ x, delay, color, size }) {
+  const translateY = useRef(new Animated.Value(-20)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const opacity    = useRef(new Animated.Value(1)).current;
+  const rotate     = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(translateY, { toValue: 750, duration: 2400, delay, useNativeDriver: true }),
+      Animated.timing(translateX, { toValue: (Math.random() - 0.5) * 120, duration: 2400, delay, useNativeDriver: true }),
+      Animated.timing(opacity,    { toValue: 0,   duration: 800,  delay: delay + 1600, useNativeDriver: true }),
+      Animated.timing(rotate,     { toValue: 6,   duration: 2400, delay, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  const rotateDeg = rotate.interpolate({ inputRange: [0, 6], outputRange: ['0deg', '720deg'] });
+  return (
+    <Animated.View style={{
+      position: 'absolute', left: x, top: 0,
+      width: size, height: size % 2 === 0 ? size : size * 1.5,
+      borderRadius: size % 2 === 0 ? size / 2 : 3,
+      backgroundColor: color, opacity,
+      transform: [{ translateY }, { translateX }, { rotate: rotateDeg }],
+    }} />
+  );
+}
+
+function Confetti({ visible }) {
+  if (!visible) return null;
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}>
+      {Array.from({ length: 45 }, (_, i) => (
+        <ConfettiPiece
+          key={i}
+          x={Math.random() * SCREEN_W}
+          delay={Math.random() * 500}
+          color={CONFETTI_COLORS[i % CONFETTI_COLORS.length]}
+          size={Math.floor(Math.random() * 8) + 6}
+        />
+      ))}
+    </View>
+  );
+}
 
 // ─── Frequency filter ─────────────────────────────────────────────────────────
 function habitIsForToday(habit) {
@@ -159,6 +208,8 @@ export default function HomeScreen() {
   const [completedTodayIds, setCompletedTodayIds] = useState([]);
   const [loading,           setLoading]           = useState(true);
   const [isToggling,        setIsToggling]        = useState(false);
+  const [showConfetti,      setShowConfetti]      = useState(false);
+  const [allDoneCelebrated, setAllDoneCelebrated] = useState(false);
 
   const xpBarAnim  = useRef(new Animated.Value(0)).current;
   const headerFade = useRef(new Animated.Value(0)).current;
@@ -166,6 +217,28 @@ export default function HomeScreen() {
   useEffect(() => {
     Animated.timing(headerFade, { toValue: 1, duration: 500, useNativeDriver: true }).start();
   }, []);
+
+  // Celebrate when all habits are done
+  useEffect(() => {
+    const mapped   = habits.filter(h => {
+      const d = new Date().getDay();
+      switch(h.frecuencia) {
+        case 'entre_semana': return d >= 1 && d <= 5;
+        case 'fines_semana': return d === 0 || d === 6;
+        default: return true;
+      }
+    });
+    const pending = mapped.filter(h => !completedTodayIds.includes(h.id));
+    const done    = mapped.filter(h =>  completedTodayIds.includes(h.id));
+    const allNowDone = pending.length === 0 && done.length > 0;
+
+    if (allNowDone && !allDoneCelebrated) {
+      setAllDoneCelebrated(true);
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+    }
+    if (!allNowDone) setAllDoneCelebrated(false);
+  }, [completedTodayIds, habits]);
 
   useEffect(() => {
     Animated.spring(xpBarAnim, {
@@ -253,6 +326,10 @@ export default function HomeScreen() {
 
         // Cancel notification since it's done
         await onHabitCompleted(habit.id);
+
+        // Trigger small confetti for every habit
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 2500);
       }
     } catch (e) {
       Alert.alert('Error', 'No se pudo guardar el progreso.');
@@ -387,6 +464,7 @@ export default function HomeScreen() {
           </>
         )}
       </ScrollView>
+      <Confetti visible={showConfetti} />
     </SafeAreaView>
   );
 }

@@ -14,7 +14,8 @@ import AddHabitScreen      from '../screens/AddHabitScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import StatusScreen        from '../screens/StatusScreen';
 import ProfileScreen       from '../screens/ProfileScreen';
-import OnboardingScreen    from '../screens/OnboardingScreen';
+import OnboardingScreen      from '../screens/OnboardingScreen';
+import AchievementsScreen    from '../screens/AchievementsScreen';
 
 import { C, R } from '../theme';
 import { useTheme } from '../context/ThemeContext';
@@ -178,7 +179,10 @@ export default function AppNavigator() {
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
       )}
       {status === 'app' && (
-        <Stack.Screen name="MainTabs" component={MainTabs} />
+        <>
+          <Stack.Screen name="MainTabs"      component={MainTabs} />
+          <Stack.Screen name="Achievements"  component={AchievementsScreen} />
+        </>
       )}
     </Stack.Navigator>
   );

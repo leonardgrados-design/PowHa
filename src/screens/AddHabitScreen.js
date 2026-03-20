@@ -15,6 +15,34 @@ import { useTheme } from '../context/ThemeContext';
 import { C, S, R, F, common } from '../theme';
 import { scheduleHabitNotification, scheduleCompletionReminder, requestNotificationPermissions } from '../services/NotificationService';
 
+const getStyles = (theme) => StyleSheet.create({
+  root:            { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
+  input:           { flex: 1, fontSize: F.body, color: theme.textPrimary, fontWeight: '500' },
+  suggChip:        { flexDirection: 'row', alignItems: 'center', gap: S.sm, backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, paddingHorizontal: 14, paddingVertical: 9, borderRadius: R.pill },
+  suggText:        { fontSize: F.label, color: theme.textSecondary, fontWeight: '500' },
+  catBtn:          { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: S.sm, backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, borderRadius: R.lg, paddingVertical: S.md },
+  catLabel:        { fontSize: F.body, fontWeight: '700', color: theme.textMuted },
+  catDot:          { position: 'absolute', bottom: 8, width: 5, height: 5, borderRadius: 3 },
+  freqHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, borderRadius: R.lg, padding: 14, marginBottom: S.sm },
+  freqIcon:        { width: 36, height: 36, borderRadius: R.md, alignItems: 'center', justifyContent: 'center' },
+  freqHeaderTitle: { fontSize: F.body, fontWeight: '600', color: theme.textPrimary },
+  freqHeaderSub:   { fontSize: F.small, color: theme.textMuted, marginTop: 1 },
+  freqPanel:       { backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, borderRadius: R.lg, overflow: 'hidden', marginBottom: 28 },
+  freqOption:      { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderBottomWidth: 0.5, borderBottomColor: C.borderDefault },
+  freqOptionIcon:  { width: 32, height: 32, borderRadius: S.sm, backgroundColor: theme.bgElevated, alignItems: 'center', justifyContent: 'center' },
+  freqOptionLabel: { fontSize: F.label, fontWeight: '600', color: theme.textSecondary },
+  freqOptionSub:   { fontSize: F.small, color: theme.textMuted, marginTop: 1 },
+  extraPanel:      { padding: 14, borderTopWidth: 0.5, borderTopColor: theme.borderDefault },
+  extraLabel:      { fontSize: F.small, color: theme.textMuted, fontWeight: '600', marginBottom: S.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
+  dayBtn:          { width: 38, height: 38, borderRadius: R.md, backgroundColor: theme.bgElevated, borderWidth: 0.5, borderColor: theme.borderStrong, alignItems: 'center', justifyContent: 'center' },
+  dayBtnText:      { fontSize: F.label, fontWeight: '600', color: theme.textMuted },
+  stepBtn:         { width: 44, height: 44, borderRadius: 12, backgroundColor: theme.bgElevated, borderWidth: 0.5, borderColor: theme.borderStrong, alignItems: 'center', justifyContent: 'center' },
+  stepBtnText:     { fontSize: 22, color: theme.accentIndigoL, fontWeight: '300', lineHeight: 26 },
+  stepValue:       { fontSize: 32, fontWeight: '800', color: theme.textPrimary, letterSpacing: -1 },
+  iconBtn:         { width: 54, height: 54, borderRadius: R.lg, backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, alignItems: 'center', justifyContent: 'center' },
+});
+
+
 const SUGERENCIAS = [
   { titulo: 'Beber 2L de agua', categoria: 'cuerpo', icono: '💧' },
   { titulo: 'Leer 15 min',      categoria: 'mente',  icono: '📚' },
@@ -48,6 +76,8 @@ const FRECUENCIAS = [
 ];
 
 function Chip({ label, active, onPress, color = C.accentIndigo, children }) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const scale = useRef(new Animated.Value(1)).current;
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
@@ -64,6 +94,7 @@ function Chip({ label, active, onPress, color = C.accentIndigo, children }) {
 
 export default function AddHabitScreen({ navigation }) {
   const { theme } = useTheme();
+  const styles = getStyles(theme);
   const [titulo,       setTitulo]       = useState('');
   const [categoria,    setCategoria]    = useState('cuerpo');
   const [horario,      setHorario]      = useState('cualquiera');
@@ -322,30 +353,3 @@ export default function AddHabitScreen({ navigation }) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  root:            { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
-  input:           { flex: 1, fontSize: F.body, color: theme.textPrimary, fontWeight: '500' },
-  suggChip:        { flexDirection: 'row', alignItems: 'center', gap: S.sm, backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, paddingHorizontal: 14, paddingVertical: 9, borderRadius: R.pill },
-  suggText:        { fontSize: F.label, color: theme.textSecondary, fontWeight: '500' },
-  catBtn:          { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: S.sm, backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, borderRadius: R.lg, paddingVertical: S.md },
-  catLabel:        { fontSize: F.body, fontWeight: '700', color: theme.textMuted },
-  catDot:          { position: 'absolute', bottom: 8, width: 5, height: 5, borderRadius: 3 },
-  freqHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, borderRadius: R.lg, padding: 14, marginBottom: S.sm },
-  freqIcon:        { width: 36, height: 36, borderRadius: R.md, alignItems: 'center', justifyContent: 'center' },
-  freqHeaderTitle: { fontSize: F.body, fontWeight: '600', color: theme.textPrimary },
-  freqHeaderSub:   { fontSize: F.small, color: theme.textMuted, marginTop: 1 },
-  freqPanel:       { backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, borderRadius: R.lg, overflow: 'hidden', marginBottom: 28 },
-  freqOption:      { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderBottomWidth: 0.5, borderBottomColor: C.borderDefault },
-  freqOptionIcon:  { width: 32, height: 32, borderRadius: S.sm, backgroundColor: theme.bgElevated, alignItems: 'center', justifyContent: 'center' },
-  freqOptionLabel: { fontSize: F.label, fontWeight: '600', color: theme.textSecondary },
-  freqOptionSub:   { fontSize: F.small, color: theme.textMuted, marginTop: 1 },
-  extraPanel:      { padding: 14, borderTopWidth: 0.5, borderTopColor: theme.borderDefault },
-  extraLabel:      { fontSize: F.small, color: theme.textMuted, fontWeight: '600', marginBottom: S.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
-  dayBtn:          { width: 38, height: 38, borderRadius: R.md, backgroundColor: theme.bgElevated, borderWidth: 0.5, borderColor: theme.borderStrong, alignItems: 'center', justifyContent: 'center' },
-  dayBtnText:      { fontSize: F.label, fontWeight: '600', color: theme.textMuted },
-  stepBtn:         { width: 44, height: 44, borderRadius: 12, backgroundColor: theme.bgElevated, borderWidth: 0.5, borderColor: theme.borderStrong, alignItems: 'center', justifyContent: 'center' },
-  stepBtnText:     { fontSize: 22, color: theme.accentIndigoL, fontWeight: '300', lineHeight: 26 },
-  stepValue:       { fontSize: 32, fontWeight: '800', color: theme.textPrimary, letterSpacing: -1 },
-  iconBtn:         { width: 54, height: 54, borderRadius: R.lg, backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, alignItems: 'center', justifyContent: 'center' },
-});

@@ -19,11 +19,24 @@ import OnboardingScreen    from '../screens/OnboardingScreen';
 import { C, R } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 
+const getStyles = (theme) => StyleSheet.create({
+  loading:         { flex: 1, backgroundColor: theme.bgBase, alignItems: 'center', justifyContent: 'center' },
+  tabBar:          { backgroundColor: theme.bgCard, borderTopWidth: 0.5, borderTopColor: theme.borderDefault, height: Platform.OS === 'ios' ? 88 : 68, paddingBottom: Platform.OS === 'ios' ? 28 : 10, paddingTop: 10, elevation: 0, shadowOpacity: 0 },
+  tabIconWrap:     { alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 2 },
+  tabDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: C.accentIndigo },
+  addButton:       { width: 52, height: 52, borderRadius: R.lg, backgroundColor: theme.bgCard, borderWidth: 1.5, borderColor: C.bgIndigoL, alignItems: 'center', justifyContent: 'center', marginTop: -16, shadowColor: C.accentIndigo, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  addButtonActive: { backgroundColor: C.accentIndigo, borderColor: C.accentIndigo, shadowOpacity: 0.5 },
+  addButtonIcon:   { fontSize: 28, color: C.accentIndigo, fontWeight: '300', lineHeight: 32, marginTop: -1 },
+});
+
+
 const Stack = createStackNavigator();
 const Tab   = createBottomTabNavigator();
 
 // ─── Tab icons ────────────────────────────────────────────────────────────────
 function TabIcon({ Icon, focused }) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const scale   = useRef(new Animated.Value(focused ? 1.1 : 0.9)).current;
   const dotAnim = useRef(new Animated.Value(focused ? 1 : 0)).current;
   useEffect(() => {
@@ -43,6 +56,8 @@ function TabIcon({ Icon, focused }) {
 }
 
 function AddButton({ focused }) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const scale  = useRef(new Animated.Value(1)).current;
   const rotate = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -63,6 +78,7 @@ function AddButton({ focused }) {
 
 function MainTabs() {
   const { theme } = useTheme();
+  const styles = getStyles(theme);
   const tabBarStyle = {
     backgroundColor: theme.bgCard,
     borderTopWidth: 0.5,
@@ -86,6 +102,8 @@ function MainTabs() {
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export default function AppNavigator() {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const [status, setStatus] = useState('loading');
   // status values:
   //   'loading'    → spinner
@@ -165,13 +183,3 @@ export default function AppNavigator() {
     </Stack.Navigator>
   );
 }
-
-const styles = StyleSheet.create({
-  loading:         { flex: 1, backgroundColor: theme.bgBase, alignItems: 'center', justifyContent: 'center' },
-  tabBar:          { backgroundColor: theme.bgCard, borderTopWidth: 0.5, borderTopColor: theme.borderDefault, height: Platform.OS === 'ios' ? 88 : 68, paddingBottom: Platform.OS === 'ios' ? 28 : 10, paddingTop: 10, elevation: 0, shadowOpacity: 0 },
-  tabIconWrap:     { alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 2 },
-  tabDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: C.accentIndigo },
-  addButton:       { width: 52, height: 52, borderRadius: R.lg, backgroundColor: theme.bgCard, borderWidth: 1.5, borderColor: C.bgIndigoL, alignItems: 'center', justifyContent: 'center', marginTop: -16, shadowColor: C.accentIndigo, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
-  addButtonActive: { backgroundColor: C.accentIndigo, borderColor: C.accentIndigo, shadowOpacity: 0.5 },
-  addButtonIcon:   { fontSize: 28, color: C.accentIndigo, fontWeight: '300', lineHeight: 32, marginTop: -1 },
-});

@@ -11,6 +11,42 @@ import { doc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/fi
 import { useTheme } from '../context/ThemeContext';
 import { C, S, R, F, common } from '../theme';
 
+const getStyles = (theme) => StyleSheet.create({
+  root:    { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
+  dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, paddingTop: S.lg, paddingBottom: S.sm },
+  dot:     { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.bgElevated },
+  dotActive: { width: 20, backgroundColor: C.accentIndigo },
+  dotDone:   { backgroundColor: C.accentIndigo + '50' },
+
+  content:    { flex: 1, position: 'relative' },
+
+  slideWrap:  { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: S.lg + 8 },
+  iconWrap:   { width: 120, height: 120, borderRadius: 32, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginBottom: S.xl },
+  iconEmoji:  { fontSize: 60 },
+  slideTitle: { fontSize: F.h1, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5, marginBottom: S.md, lineHeight: 34 },
+  slideBody:  { fontSize: F.body, color: theme.textSecondary, textAlign: 'center', lineHeight: 24 },
+
+  habitsWrap:  { ...StyleSheet.absoluteFillObject, paddingHorizontal: S.lg, paddingTop: S.md },
+  habitsTitle: { fontSize: F.h2, fontWeight: '800', color: theme.textPrimary, letterSpacing: -0.5, marginBottom: S.sm },
+  habitsSub:   { fontSize: F.label, color: theme.textMuted, lineHeight: 20, marginBottom: S.lg },
+  habitsGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: S.sm },
+  countRow:    { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: S.sm, paddingVertical: S.sm },
+  countText:   { fontSize: F.label, color: theme.accentIndigoL, fontWeight: '600' },
+
+  chip:      { flexDirection: 'row', alignItems: 'center', gap: S.sm, backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, borderRadius: R.pill, paddingHorizontal: 14, paddingVertical: 10 },
+  chipLabel: { fontSize: F.label, color: theme.textSecondary, fontWeight: '500' },
+  chipCheck: { width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginLeft: 2 },
+
+  nav:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: S.lg, paddingVertical: S.sm },
+  backBtn:  { padding: S.sm },
+  backText: { fontSize: F.body, color: theme.textMuted, fontWeight: '500' },
+  nextBtn:  { flexDirection: 'row', alignItems: 'center', gap: S.sm, backgroundColor: C.accentIndigo, paddingHorizontal: S.lg, paddingVertical: 14, borderRadius: R.lg },
+  nextText: { fontSize: F.body, fontWeight: '700', color: '#fff' },
+  skipBtn:  { alignItems: 'center', paddingBottom: Platform.OS === 'ios' ? S.lg : S.md, paddingTop: 2 },
+  skipText: { fontSize: F.small, color: theme.textMuted },
+});
+
+
 // ─── Slides ───────────────────────────────────────────────────────────────────
 const SLIDES = [
   {
@@ -49,6 +85,8 @@ const SUGGESTED = [
 
 // ─── Habit chip ───────────────────────────────────────────────────────────────
 function HabitChip({ habit, selected, onPress }) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const scale    = useRef(new Animated.Value(1)).current;
   const pressIn  = () => Animated.spring(scale, { toValue: 0.94, useNativeDriver: true, tension: 200 }).start();
   const pressOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, tension: 200 }).start();
@@ -73,6 +111,7 @@ function HabitChip({ habit, selected, onPress }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function OnboardingScreen({ navigation }) {
   const { theme } = useTheme();
+  const styles = getStyles(theme);
   const [step,     setStep]     = useState(0); // 0-2 = slides, 3 = habits
   const [selected, setSelected] = useState([]);
   const [saving,   setSaving]   = useState(false);
@@ -232,37 +271,3 @@ export default function OnboardingScreen({ navigation }) {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
-  dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, paddingTop: S.lg, paddingBottom: S.sm },
-  dot:     { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.bgElevated },
-  dotActive: { width: 20, backgroundColor: C.accentIndigo },
-  dotDone:   { backgroundColor: C.accentIndigo + '50' },
-
-  content:    { flex: 1, position: 'relative' },
-
-  slideWrap:  { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: S.lg + 8 },
-  iconWrap:   { width: 120, height: 120, borderRadius: 32, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginBottom: S.xl },
-  iconEmoji:  { fontSize: 60 },
-  slideTitle: { fontSize: F.h1, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5, marginBottom: S.md, lineHeight: 34 },
-  slideBody:  { fontSize: F.body, color: theme.textSecondary, textAlign: 'center', lineHeight: 24 },
-
-  habitsWrap:  { ...StyleSheet.absoluteFillObject, paddingHorizontal: S.lg, paddingTop: S.md },
-  habitsTitle: { fontSize: F.h2, fontWeight: '800', color: theme.textPrimary, letterSpacing: -0.5, marginBottom: S.sm },
-  habitsSub:   { fontSize: F.label, color: theme.textMuted, lineHeight: 20, marginBottom: S.lg },
-  habitsGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: S.sm },
-  countRow:    { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: S.sm, paddingVertical: S.sm },
-  countText:   { fontSize: F.label, color: theme.accentIndigoL, fontWeight: '600' },
-
-  chip:      { flexDirection: 'row', alignItems: 'center', gap: S.sm, backgroundColor: theme.bgCard, borderWidth: 0.5, borderColor: theme.borderStrong, borderRadius: R.pill, paddingHorizontal: 14, paddingVertical: 10 },
-  chipLabel: { fontSize: F.label, color: theme.textSecondary, fontWeight: '500' },
-  chipCheck: { width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginLeft: 2 },
-
-  nav:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: S.lg, paddingVertical: S.sm },
-  backBtn:  { padding: S.sm },
-  backText: { fontSize: F.body, color: theme.textMuted, fontWeight: '500' },
-  nextBtn:  { flexDirection: 'row', alignItems: 'center', gap: S.sm, backgroundColor: C.accentIndigo, paddingHorizontal: S.lg, paddingVertical: 14, borderRadius: R.lg },
-  nextText: { fontSize: F.body, fontWeight: '700', color: '#fff' },
-  skipBtn:  { alignItems: 'center', paddingBottom: Platform.OS === 'ios' ? S.lg : S.md, paddingTop: 2 },
-  skipText: { fontSize: F.small, color: theme.textMuted },
-});

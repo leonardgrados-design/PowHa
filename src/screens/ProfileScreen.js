@@ -20,6 +20,35 @@ import { C, S, R, F, common } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import { cancelAllNotifications, scheduleAllHabits } from '../services/NotificationService';
 
+const getStyles = (theme) => StyleSheet.create({
+  root:          { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
+  scroll:        { paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: 48 },
+  hero:          { alignItems: 'center', marginBottom: S.lg, paddingTop: S.sm },
+  heroName:      { fontSize: F.h2, fontWeight: '800', color: theme.textPrimary, marginTop: 14, letterSpacing: -0.3 },
+  heroEmail:     { fontSize: F.label, color: theme.textMuted, marginTop: 3, marginBottom: 10 },
+  heroXpRow:     { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginTop: S.sm, width: '70%' },
+  statsStrip:    { flexDirection: 'row', backgroundColor: theme.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: theme.borderDefault, paddingVertical: S.md, marginBottom: 28 },
+  sectionTitle:  { fontSize: F.caption, fontWeight: '700', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginTop: 4 },
+  photoBtn:      { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: theme.bgElevated, borderRadius: R.lg, borderWidth: 0.5, borderColor: theme.borderStrong, padding: 14 },
+  photoBtnTitle: { fontSize: F.body, fontWeight: '600', color: theme.textPrimary },
+  photoBtnSub:   { fontSize: F.small, color: theme.textMuted, marginTop: 2 },
+  orDivider:     { textAlign: 'center', fontSize: F.small, color: theme.textMuted, marginVertical: S.md },
+  avatarGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: S.sm, justifyContent: 'center' },
+  avatarGridItem:{ alignItems: 'center', padding: 6, borderRadius: R.lg, borderWidth: 1.5, borderColor: 'transparent', position: 'relative' },
+  avatarGridFace:{ width: 60, height: 60, borderRadius: R.lg, alignItems: 'center', justifyContent: 'center' },
+  avatarCheckBadge: { position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: 8, backgroundColor: C.accentIndigo, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: C.bgCard },
+  modalDesc:     { fontSize: F.label, color: theme.textMuted, marginBottom: S.md, lineHeight: 20 },
+  modalInput:    { flex: 1, fontSize: F.body, color: theme.textPrimary, fontWeight: '500' },
+  fieldError:    { fontSize: F.small, color: C.accentRed, marginBottom: S.sm, marginLeft: 4 },
+  warningBox:    { flexDirection: 'row', gap: S.sm, backgroundColor: theme.bgAmber, borderWidth: 0.5, borderColor: C.bgAmberL, borderRadius: R.md, padding: 14, alignItems: 'flex-start' },
+  warningText:   { flex: 1, fontSize: F.small, color: C.accentAmber, lineHeight: 18 },
+  amberBtn:      { height: 52, backgroundColor: theme.bgAmber, borderWidth: 0.5, borderColor: C.bgAmberL, borderRadius: R.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: S.sm },
+  amberBtnText:  { color: C.accentAmber, fontWeight: '700', fontSize: F.body },
+  privacyTitle:  { fontSize: F.label, fontWeight: '700', color: theme.textPrimary, marginBottom: 4 },
+  privacyBody:   { fontSize: F.small, color: theme.textSecondary, lineHeight: 20 },
+});
+
+
 // ─── Avatars ──────────────────────────────────────────────────────────────────
 const AVATARS = [
   { id: 'a1',  face: '😎', bg: '#1E1E40' }, { id: 'a2',  face: '🧑‍💻', bg: '#0A2420' },
@@ -67,6 +96,7 @@ function AvatarDisplay({ avatarId, photoUrl, size = 96, onPress }) {
 }
 
 function BottomModal({ visible, onClose, title, children }) {
+  const { theme } = useTheme();
   const slide = useRef(new Animated.Value(400)).current;
   useEffect(() => {
     Animated.spring(slide, { toValue: visible ? 0 : 400, useNativeDriver: true, tension: 70, friction: 12 }).start();
@@ -91,11 +121,12 @@ function BottomModal({ visible, onClose, title, children }) {
 }
 
 function OptionRow({ icon, label, onPress, right, danger }) {
+  const { theme } = useTheme();
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7}
       style={[common.optionRow, danger && { backgroundColor: theme.bgRed }]}>
       <View style={[common.optionIcon, danger && { backgroundColor: '#2D0808' }]}>{icon}</View>
-      <Text style={[common.optionLabel, danger && { color: C.accentRed }]}>{label}</Text>
+      <Text style={[common.optionLabel, danger && { color: theme.accentRed }]}>{label}</Text>
       {right !== undefined ? right : <ChevronRight size={16} color={theme.textMuted} />}
     </TouchableOpacity>
   );
@@ -104,6 +135,7 @@ function OptionRow({ icon, label, onPress, right, danger }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const { isDark, theme, toggleTheme } = useTheme();
+  const styles = getStyles(theme);
   const [userData,       setUserData]       = useState(null);
   const [loading,        setLoading]        = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -661,31 +693,3 @@ export default function ProfileScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
-  scroll:        { paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: 48 },
-  hero:          { alignItems: 'center', marginBottom: S.lg, paddingTop: S.sm },
-  heroName:      { fontSize: F.h2, fontWeight: '800', color: theme.textPrimary, marginTop: 14, letterSpacing: -0.3 },
-  heroEmail:     { fontSize: F.label, color: theme.textMuted, marginTop: 3, marginBottom: 10 },
-  heroXpRow:     { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginTop: S.sm, width: '70%' },
-  statsStrip:    { flexDirection: 'row', backgroundColor: theme.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: theme.borderDefault, paddingVertical: S.md, marginBottom: 28 },
-  sectionTitle:  { fontSize: F.caption, fontWeight: '700', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginTop: 4 },
-  photoBtn:      { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: theme.bgElevated, borderRadius: R.lg, borderWidth: 0.5, borderColor: theme.borderStrong, padding: 14 },
-  photoBtnTitle: { fontSize: F.body, fontWeight: '600', color: theme.textPrimary },
-  photoBtnSub:   { fontSize: F.small, color: theme.textMuted, marginTop: 2 },
-  orDivider:     { textAlign: 'center', fontSize: F.small, color: theme.textMuted, marginVertical: S.md },
-  avatarGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: S.sm, justifyContent: 'center' },
-  avatarGridItem:{ alignItems: 'center', padding: 6, borderRadius: R.lg, borderWidth: 1.5, borderColor: 'transparent', position: 'relative' },
-  avatarGridFace:{ width: 60, height: 60, borderRadius: R.lg, alignItems: 'center', justifyContent: 'center' },
-  avatarCheckBadge: { position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: 8, backgroundColor: C.accentIndigo, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: C.bgCard },
-  modalDesc:     { fontSize: F.label, color: theme.textMuted, marginBottom: S.md, lineHeight: 20 },
-  modalInput:    { flex: 1, fontSize: F.body, color: theme.textPrimary, fontWeight: '500' },
-  fieldError:    { fontSize: F.small, color: C.accentRed, marginBottom: S.sm, marginLeft: 4 },
-  warningBox:    { flexDirection: 'row', gap: S.sm, backgroundColor: theme.bgAmber, borderWidth: 0.5, borderColor: C.bgAmberL, borderRadius: R.md, padding: 14, alignItems: 'flex-start' },
-  warningText:   { flex: 1, fontSize: F.small, color: C.accentAmber, lineHeight: 18 },
-  amberBtn:      { height: 52, backgroundColor: theme.bgAmber, borderWidth: 0.5, borderColor: C.bgAmberL, borderRadius: R.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: S.sm },
-  amberBtnText:  { color: C.accentAmber, fontWeight: '700', fontSize: F.body },
-  privacyTitle:  { fontSize: F.label, fontWeight: '700', color: theme.textPrimary, marginBottom: 4 },
-  privacyBody:   { fontSize: F.small, color: theme.textSecondary, lineHeight: 20 },
-});

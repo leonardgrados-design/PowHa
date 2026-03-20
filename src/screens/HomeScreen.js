@@ -12,12 +12,51 @@ import {
   addDoc, getDocs, deleteDoc, doc,
   updateDoc, increment, getDoc,
 } from 'firebase/firestore';
+import { useTheme } from '../context/ThemeContext';
 import { C, S, R, F, common, CATEGORY_CONFIG } from '../theme';
 import {
   scheduleAllHabits,
   onHabitCompleted,
   onHabitUncompleted,
 } from '../services/NotificationService';
+
+const getStyles = (theme) => StyleSheet.create({
+  root:          { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
+  header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: S.sm },
+  greeting:      { fontSize: F.h2, fontWeight: '800', color: theme.textPrimary, letterSpacing: -0.5 },
+  subGreeting:   { fontSize: F.label, color: theme.textMuted, marginTop: 2 },
+  banner:        { marginHorizontal: S.lg, marginTop: S.md, backgroundColor: theme.bgCard, borderRadius: R.xl, borderWidth: 0.5, borderColor: theme.borderDefault, padding: S.lg, flexDirection: 'row', alignItems: 'center' },
+  bannerLevel:   { fontSize: 26, fontWeight: '800', color: theme.textPrimary, letterSpacing: -0.5 },
+  bannerXP:      { fontSize: F.label, color: theme.accentIndigoL, fontWeight: '600', marginBottom: 12 },
+  xpBarLabel:    { fontSize: F.caption, color: theme.textMuted, fontWeight: '500', marginTop: 5 },
+  skippedNotice: { marginHorizontal: S.lg, marginTop: S.sm, backgroundColor: theme.bgElevated, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: S.sm },
+  skippedText:   { fontSize: F.small, color: theme.textMuted, textAlign: 'center' },
+  allDone:       { marginHorizontal: S.lg, marginTop: S.lg, backgroundColor: theme.bgGreen, borderRadius: R.lg, borderWidth: 0.5, borderColor: C.bgGreenL, paddingVertical: S.lg, alignItems: 'center' },
+  allDoneTitle:  { fontSize: F.h4, fontWeight: '700', color: C.accentGreen, marginTop: S.sm },
+  allDoneDesc:   { fontSize: F.label, color: '#34D399', marginTop: 4 },
+  section:       { marginTop: 28, paddingHorizontal: S.lg },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginBottom: 12 },
+  sectionDot:    { width: 6, height: 6, borderRadius: 3 },
+  sectionTitle:  { fontSize: F.caption, fontWeight: '700', color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, flex: 1 },
+  sectionCount:  { fontSize: F.small, fontWeight: '700', color: theme.textMuted, backgroundColor: theme.bgElevated, paddingHorizontal: S.sm, paddingVertical: 2, borderRadius: R.pill },
+  habitCard:     { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: theme.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: theme.borderDefault, borderLeftWidth: 3, padding: 14, marginBottom: S.sm },
+  habitCardDone: { opacity: 0.5 },
+  habitIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  habitEmoji:    { fontSize: 22 },
+  habitText:     { flex: 1 },
+  habitTitle:    { fontSize: F.body, fontWeight: '600', color: theme.textPrimary },
+  habitTitleDone:{ textDecorationLine: 'line-through', color: theme.textMuted },
+  habitMetaRow:  { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginTop: 3, flexWrap: 'wrap' },
+  habitMeta:     { fontSize: F.small, color: theme.textMuted },
+  freqBadge:     { backgroundColor: theme.bgElevated, borderRadius: R.pill, paddingHorizontal: 6, paddingVertical: 1 },
+  freqBadgeText: { fontSize: 10, color: theme.textMuted, fontWeight: '600' },
+  habitRight:    { alignItems: 'flex-end', gap: S.sm },
+  xpPill:        { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: theme.bgIndigo, paddingHorizontal: S.sm, paddingVertical: 3, borderRadius: R.pill, borderWidth: 0.5, borderColor: C.bgIndigoL },
+  xpText:        { fontSize: F.caption, fontWeight: '700', color: theme.accentIndigoL },
+  checkCircle:   { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, borderColor: theme.borderStrong, alignItems: 'center', justifyContent: 'center' },
+  checkCircleDone: { backgroundColor: C.accentGreen, borderColor: C.accentGreen },
+});
+
 
 // ─── Frequency filter ─────────────────────────────────────────────────────────
 function habitIsForToday(habit) {
@@ -41,6 +80,8 @@ function habitIsForToday(habit) {
 
 // ─── Habit Card ───────────────────────────────────────────────────────────────
 function HabitCard({ habit, onPress, disabled }) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const scale     = useRef(new Animated.Value(1)).current;
   const checkAnim = useRef(new Animated.Value(habit.completado_hoy ? 1 : 0)).current;
   const cfg       = CATEGORY_CONFIG[habit.categoria] || CATEGORY_CONFIG.cuerpo;
@@ -71,7 +112,7 @@ function HabitCard({ habit, onPress, disabled }) {
       <TouchableOpacity
         onPress={onPress} onPressIn={pressIn} onPressOut={pressOut}
         disabled={disabled} activeOpacity={1}
-        style={[styles.habitCard, habit.completado_hoy && styles.habitCardDone, { borderLeftColor: cfg.color }]}
+        style={[styles.habitCard, habit.completado_hoy && styles.habitCardDone, { borderLeftColor: cfg.color, backgroundColor: theme.bgCard, borderColor: theme.borderDefault }]}
       >
         <View style={[styles.habitIconWrap, { backgroundColor: cfg.bg }]}>
           <Text style={styles.habitEmoji}>{habit.icono}</Text>
@@ -111,6 +152,8 @@ function HabitCard({ habit, onPress, disabled }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function HomeScreen() {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const [stats,             setStats]             = useState({ xp: 0, level: 1, streak: 0 });
   const [habits,            setHabits]            = useState([]);
   const [completedTodayIds, setCompletedTodayIds] = useState([]);
@@ -240,8 +283,8 @@ export default function HomeScreen() {
   })();
 
   return (
-    <SafeAreaView style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bgBase} />
+    <SafeAreaView style={[styles.root, { backgroundColor: theme.bgBase }]}>
+      <StatusBar barStyle={theme.statusBar} backgroundColor={theme.bgBase} />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }}>
 
         {/* Header */}
@@ -259,7 +302,7 @@ export default function HomeScreen() {
         </Animated.View>
 
         {/* Banner */}
-        <View style={styles.banner}>
+        <View style={[styles.banner, { backgroundColor: theme.bgCard, borderColor: theme.borderDefault }]}>
           <View style={{ flex: 1, paddingRight: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: S.sm, marginBottom: 4 }}>
               <Text style={styles.bannerLevel}>Nivel {stats.level}</Text>
@@ -291,7 +334,7 @@ export default function HomeScreen() {
           </View>
         ) : habits.length === 0 ? (
           <View style={[common.emptyState, { marginHorizontal: S.lg, marginTop: 32 }]}>
-            <Inbox size={44} color={C.textMuted} strokeWidth={1.5} />
+            <Inbox size={44} color={theme.textMuted} strokeWidth={1.5} />
             <Text style={common.emptyTitle}>Sin hábitos todavía</Text>
             <Text style={common.emptyDesc}>Toca el botón + para crear tu primer objetivo.</Text>
           </View>
@@ -316,7 +359,7 @@ export default function HomeScreen() {
               if (!list?.length) return null;
               const cfg = CATEGORY_CONFIG[cat] || CATEGORY_CONFIG.cuerpo;
               return (
-                <View key={cat} style={styles.section}>
+                <View key={cat} style={[styles.section]}>
                   <View style={styles.sectionHeader}>
                     <View style={[styles.sectionDot, { backgroundColor: cfg.color }]} />
                     <Text style={styles.sectionTitle}>{cfg.label}</Text>
@@ -330,10 +373,10 @@ export default function HomeScreen() {
             })}
 
             {done.length > 0 && (
-              <View style={styles.section}>
+              <View style={[styles.section]}>
                 <View style={styles.sectionHeader}>
                   <View style={[styles.sectionDot, { backgroundColor: C.accentGreen }]} />
-                  <Text style={[styles.sectionTitle, { color: C.textMuted }]}>Completados hoy</Text>
+                  <Text style={[styles.sectionTitle, { color: theme.textMuted }]}>Completados hoy</Text>
                   <Text style={styles.sectionCount}>{done.length}</Text>
                 </View>
                 {done.map(h => (
@@ -347,40 +390,3 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: C.bgBase, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
-  header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: S.sm },
-  greeting:      { fontSize: F.h2, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.5 },
-  subGreeting:   { fontSize: F.label, color: C.textMuted, marginTop: 2 },
-  banner:        { marginHorizontal: S.lg, marginTop: S.md, backgroundColor: C.bgCard, borderRadius: R.xl, borderWidth: 0.5, borderColor: C.borderDefault, padding: S.lg, flexDirection: 'row', alignItems: 'center' },
-  bannerLevel:   { fontSize: 26, fontWeight: '800', color: C.textPrimary, letterSpacing: -0.5 },
-  bannerXP:      { fontSize: F.label, color: C.accentIndigoL, fontWeight: '600', marginBottom: 12 },
-  xpBarLabel:    { fontSize: F.caption, color: C.textMuted, fontWeight: '500', marginTop: 5 },
-  skippedNotice: { marginHorizontal: S.lg, marginTop: S.sm, backgroundColor: C.bgElevated, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: S.sm },
-  skippedText:   { fontSize: F.small, color: C.textMuted, textAlign: 'center' },
-  allDone:       { marginHorizontal: S.lg, marginTop: S.lg, backgroundColor: C.bgGreen, borderRadius: R.lg, borderWidth: 0.5, borderColor: C.bgGreenL, paddingVertical: S.lg, alignItems: 'center' },
-  allDoneTitle:  { fontSize: F.h4, fontWeight: '700', color: C.accentGreen, marginTop: S.sm },
-  allDoneDesc:   { fontSize: F.label, color: '#34D399', marginTop: 4 },
-  section:       { marginTop: 28, paddingHorizontal: S.lg },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginBottom: 12 },
-  sectionDot:    { width: 6, height: 6, borderRadius: 3 },
-  sectionTitle:  { fontSize: F.caption, fontWeight: '700', color: C.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, flex: 1 },
-  sectionCount:  { fontSize: F.small, fontWeight: '700', color: C.textMuted, backgroundColor: C.bgElevated, paddingHorizontal: S.sm, paddingVertical: 2, borderRadius: R.pill },
-  habitCard:     { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: C.borderDefault, borderLeftWidth: 3, padding: 14, marginBottom: S.sm },
-  habitCardDone: { opacity: 0.5 },
-  habitIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  habitEmoji:    { fontSize: 22 },
-  habitText:     { flex: 1 },
-  habitTitle:    { fontSize: F.body, fontWeight: '600', color: C.textPrimary },
-  habitTitleDone:{ textDecorationLine: 'line-through', color: C.textMuted },
-  habitMetaRow:  { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginTop: 3, flexWrap: 'wrap' },
-  habitMeta:     { fontSize: F.small, color: C.textMuted },
-  freqBadge:     { backgroundColor: C.bgElevated, borderRadius: R.pill, paddingHorizontal: 6, paddingVertical: 1 },
-  freqBadgeText: { fontSize: 10, color: C.textMuted, fontWeight: '600' },
-  habitRight:    { alignItems: 'flex-end', gap: S.sm },
-  xpPill:        { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: C.bgIndigo, paddingHorizontal: S.sm, paddingVertical: 3, borderRadius: R.pill, borderWidth: 0.5, borderColor: C.bgIndigoL },
-  xpText:        { fontSize: F.caption, fontWeight: '700', color: C.accentIndigoL },
-  checkCircle:   { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, borderColor: C.borderStrong, alignItems: 'center', justifyContent: 'center' },
-  checkCircleDone: { backgroundColor: C.accentGreen, borderColor: C.accentGreen },
-});

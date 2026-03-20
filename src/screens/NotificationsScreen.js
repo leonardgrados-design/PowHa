@@ -7,7 +7,36 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { useTheme } from '../context/ThemeContext';
 import { C, S, R, F, common, HORARIO_CONFIG } from '../theme';
 
+const getStyles = (theme) => StyleSheet.create({
+  root:           { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
+  header:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: 14 },
+  headerTitle:    { fontSize: F.h1, fontWeight: '800', color: theme.textPrimary, letterSpacing: -0.5 },
+  headerSub:      { fontSize: F.label, color: theme.textMuted, marginTop: 3 },
+  bellBadge:      { position: 'absolute', top: -5, right: -6, backgroundColor: C.accentAmber, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  bellBadgeText:  { fontSize: 9, fontWeight: '800', color: '#000' },
+  progressWrap:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: S.lg, gap: S.sm, marginBottom: S.sm },
+  progressLabel:  { fontSize: F.caption, color: theme.textMuted, minWidth: 40 },
+  listContent:    { paddingHorizontal: S.lg, paddingBottom: 48, paddingTop: 4 },
+  groupHeader:    { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginTop: S.lg, marginBottom: S.sm },
+  groupDot:       { width: 6, height: 6, borderRadius: 3 },
+  groupLabel:     { fontSize: F.small, fontWeight: '700', color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, flex: 1 },
+  groupCount:     { paddingHorizontal: S.sm, paddingVertical: 2, borderRadius: R.pill, borderWidth: 0.5 },
+  groupCountText: { fontSize: F.caption, fontWeight: '700' },
+  card:           { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: theme.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: theme.borderDefault, borderLeftWidth: 3, padding: 14, marginBottom: S.sm },
+  iconWrap:       { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  cardTitle:      { fontSize: F.body, fontWeight: '600', color: theme.textPrimary },
+  metaText:       { fontSize: F.small, fontWeight: '600' },
+  metaXP:         { fontSize: F.small, color: theme.accentIndigoL, fontWeight: '600' },
+  metaDot:        { width: 3, height: 3, borderRadius: 2, backgroundColor: theme.textMuted, marginHorizontal: 2 },
+  emptyWrap:      { flex: 1, alignItems: 'center', paddingHorizontal: 32, paddingTop: 60 },
+  emptyIconCircle:{ width: 88, height: 88, borderRadius: 24, backgroundColor: C.accentGreen + '18', borderWidth: 0.5, borderColor: C.accentGreen + '40', alignItems: 'center', justifyContent: 'center', marginBottom: S.lg },
+  emptyTitle:     { fontSize: F.h3, fontWeight: '800', color: theme.textPrimary, marginBottom: S.sm },
+});
+
+
 function NotifCard({ item, onPress, index }) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const slide = useRef(new Animated.Value(30)).current;
   const fade  = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
@@ -48,6 +77,7 @@ function NotifCard({ item, onPress, index }) {
 
 export default function NotificationsScreen({ navigation }) {
   const { theme } = useTheme();
+  const styles = getStyles(theme);
   const [habits,            setHabits]            = useState([]);
   const [completedTodayIds, setCompletedTodayIds] = useState([]);
   const [loading,           setLoading]           = useState(true);
@@ -179,29 +209,3 @@ export default function NotificationsScreen({ navigation }) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  root:           { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
-  header:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: 14 },
-  headerTitle:    { fontSize: F.h1, fontWeight: '800', color: theme.textPrimary, letterSpacing: -0.5 },
-  headerSub:      { fontSize: F.label, color: theme.textMuted, marginTop: 3 },
-  bellBadge:      { position: 'absolute', top: -5, right: -6, backgroundColor: C.accentAmber, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  bellBadgeText:  { fontSize: 9, fontWeight: '800', color: '#000' },
-  progressWrap:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: S.lg, gap: S.sm, marginBottom: S.sm },
-  progressLabel:  { fontSize: F.caption, color: theme.textMuted, minWidth: 40 },
-  listContent:    { paddingHorizontal: S.lg, paddingBottom: 48, paddingTop: 4 },
-  groupHeader:    { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginTop: S.lg, marginBottom: S.sm },
-  groupDot:       { width: 6, height: 6, borderRadius: 3 },
-  groupLabel:     { fontSize: F.small, fontWeight: '700', color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, flex: 1 },
-  groupCount:     { paddingHorizontal: S.sm, paddingVertical: 2, borderRadius: R.pill, borderWidth: 0.5 },
-  groupCountText: { fontSize: F.caption, fontWeight: '700' },
-  card:           { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: theme.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: theme.borderDefault, borderLeftWidth: 3, padding: 14, marginBottom: S.sm },
-  iconWrap:       { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  cardTitle:      { fontSize: F.body, fontWeight: '600', color: theme.textPrimary },
-  metaText:       { fontSize: F.small, fontWeight: '600' },
-  metaXP:         { fontSize: F.small, color: theme.accentIndigoL, fontWeight: '600' },
-  metaDot:        { width: 3, height: 3, borderRadius: 2, backgroundColor: theme.textMuted, marginHorizontal: 2 },
-  emptyWrap:      { flex: 1, alignItems: 'center', paddingHorizontal: 32, paddingTop: 60 },
-  emptyIconCircle:{ width: 88, height: 88, borderRadius: 24, backgroundColor: C.accentGreen + '18', borderWidth: 0.5, borderColor: C.accentGreen + '40', alignItems: 'center', justifyContent: 'center', marginBottom: S.lg },
-  emptyTitle:     { fontSize: F.h3, fontWeight: '800', color: theme.textPrimary, marginBottom: S.sm },
-});

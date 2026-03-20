@@ -7,7 +7,35 @@ import { doc, collection, query, where, getDocs, onSnapshot } from 'firebase/fir
 import { useTheme } from '../context/ThemeContext';
 import { C, S, R, F, common } from '../theme';
 
+const getStyles = (theme) => StyleSheet.create({
+  root:         { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
+  scroll:       { paddingHorizontal: S.lg, paddingBottom: 48, paddingTop: S.lg },
+  pageTitle:    { fontSize: F.h1, fontWeight: '800', color: theme.textPrimary, letterSpacing: -0.5, marginBottom: S.lg },
+  heroXPNum:    { fontSize: 32, fontWeight: '800', color: theme.textPrimary, letterSpacing: -1 },
+  heroXPSub:    { fontSize: F.h4, fontWeight: '600', color: theme.textMuted },
+  statCard:     { flex: 1, backgroundColor: theme.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: theme.borderDefault, padding: 14, alignItems: 'center' },
+  statIconWrap: { width: 32, height: 32, borderRadius: R.md, alignItems: 'center', justifyContent: 'center', marginBottom: S.sm },
+  statValue:    { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
+  statLabel:    { fontSize: F.caption, color: theme.textMuted, marginTop: 2, textAlign: 'center' },
+  statSub:      { fontSize: 10, color: theme.textMuted, textAlign: 'center' },
+  cardHeader:   { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginBottom: 14 },
+  cardTitle:    { fontSize: F.body, fontWeight: '700', color: theme.textPrimary },
+  cardSub:      { fontSize: F.label, color: theme.textMuted, marginTop: S.sm, lineHeight: 18 },
+  barsContainer:{ flexDirection: 'row', alignItems: 'flex-end', height: 120, gap: S.sm },
+  barCol:       { flex: 1, alignItems: 'center', gap: 4 },
+  barTrack:     { flex: 1, width: '100%', justifyContent: 'flex-end' },
+  barFill:      { width: '100%', borderRadius: 4 },
+  barCount:     { fontSize: 10, color: theme.textMuted, fontWeight: '600' },
+  barLabel:     { fontSize: 10, color: theme.textMuted },
+  analysisRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: S.sm },
+  analysisLabel:{ fontSize: F.label, color: theme.textSecondary },
+  analysisValue:{ fontSize: F.label, fontWeight: '700' },
+});
+
+
 function StatCard({ label, value, sub, color = C.accentIndigo, icon }) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => { Animated.spring(anim, { toValue: 1, useNativeDriver: true, tension: 60, friction: 8, delay: 100 }).start(); }, []);
   return (
@@ -21,6 +49,8 @@ function StatCard({ label, value, sub, color = C.accentIndigo, icon }) {
 }
 
 function ActivityBars({ data, labels }) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const max = Math.max(...data, 1);
   return (
     <View style={styles.barsContainer}>
@@ -41,6 +71,8 @@ function ActivityBars({ data, labels }) {
 }
 
 function StreakRow({ streak }) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const flames = Math.min(streak, 7);
   return (
     <View style={{ flexDirection: 'row', gap: S.sm, alignItems: 'center' }}>
@@ -54,6 +86,7 @@ function StreakRow({ streak }) {
 
 export default function StatusScreen() {
   const { theme } = useTheme();
+  const styles = getStyles(theme);
   const [loading,   setLoading]   = useState(true);
   const [userData,  setUserData]  = useState({ xp_total: 0, nivel: 1, racha_actual: 0 });
   const [chartData, setChartData] = useState({ labels: [], data: [] });
@@ -206,28 +239,3 @@ export default function StatusScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  root:         { flex: 1, backgroundColor: theme.bgBase, paddingTop: Platform.OS === 'android' ? 25 : 0 },
-  scroll:       { paddingHorizontal: S.lg, paddingBottom: 48, paddingTop: S.lg },
-  pageTitle:    { fontSize: F.h1, fontWeight: '800', color: theme.textPrimary, letterSpacing: -0.5, marginBottom: S.lg },
-  heroXPNum:    { fontSize: 32, fontWeight: '800', color: theme.textPrimary, letterSpacing: -1 },
-  heroXPSub:    { fontSize: F.h4, fontWeight: '600', color: theme.textMuted },
-  statCard:     { flex: 1, backgroundColor: theme.bgCard, borderRadius: R.lg, borderWidth: 0.5, borderColor: theme.borderDefault, padding: 14, alignItems: 'center' },
-  statIconWrap: { width: 32, height: 32, borderRadius: R.md, alignItems: 'center', justifyContent: 'center', marginBottom: S.sm },
-  statValue:    { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
-  statLabel:    { fontSize: F.caption, color: theme.textMuted, marginTop: 2, textAlign: 'center' },
-  statSub:      { fontSize: 10, color: theme.textMuted, textAlign: 'center' },
-  cardHeader:   { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginBottom: 14 },
-  cardTitle:    { fontSize: F.body, fontWeight: '700', color: theme.textPrimary },
-  cardSub:      { fontSize: F.label, color: theme.textMuted, marginTop: S.sm, lineHeight: 18 },
-  barsContainer:{ flexDirection: 'row', alignItems: 'flex-end', height: 120, gap: S.sm },
-  barCol:       { flex: 1, alignItems: 'center', gap: 4 },
-  barTrack:     { flex: 1, width: '100%', justifyContent: 'flex-end' },
-  barFill:      { width: '100%', borderRadius: 4 },
-  barCount:     { fontSize: 10, color: theme.textMuted, fontWeight: '600' },
-  barLabel:     { fontSize: 10, color: theme.textMuted },
-  analysisRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: S.sm },
-  analysisLabel:{ fontSize: F.label, color: theme.textSecondary },
-  analysisValue:{ fontSize: F.label, fontWeight: '700' },
-});

@@ -8,6 +8,23 @@ import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { useTheme } from '../context/ThemeContext';
 import { C, S, R, F, common } from '../theme';
 
+const getStyles = (theme) => StyleSheet.create({
+  root:             { flex: 1, backgroundColor: theme.bgBase },
+  scroll:           { flexGrow: 1, justifyContent: 'center', padding: S.lg, paddingBottom: 48 },
+  logoSection:      { alignItems: 'center', marginBottom: 44 },
+  logoCircle:       { width: 80, height: 80, borderRadius: 22, backgroundColor: theme.bgIndigo, borderWidth: 1.5, borderColor: C.bgIndigoL, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+  appName:          { fontSize: 34, fontWeight: '900', color: theme.textPrimary, letterSpacing: -1 },
+  appTagline:       { fontSize: F.body, color: theme.textMuted, marginTop: 5 },
+  fieldInput:       { flex: 1, fontSize: F.body, color: theme.textPrimary, fontWeight: '500' },
+  fieldError:       { fontSize: F.small, color: C.accentRed, marginTop: 5, marginLeft: 4 },
+  generalError:     { backgroundColor: C.accentRed + '18', borderWidth: 0.5, borderColor: C.accentRed + '50', borderRadius: R.md, padding: 12, marginBottom: 14 },
+  generalErrorText: { color: C.accentRed, fontSize: F.label, fontWeight: '500', textAlign: 'center' },
+  switchBtn:        { alignItems: 'center', marginTop: 22, padding: S.sm },
+  switchText:       { fontSize: F.label, color: theme.textMuted },
+  switchAccent:     { color: theme.accentIndigoL, fontWeight: '700' },
+});
+
+
 const AUTH_ERRORS = {
   'auth/email-already-in-use': 'Este correo ya está registrado.',
   'auth/invalid-email':        'El formato del correo es inválido.',
@@ -19,6 +36,8 @@ const AUTH_ERRORS = {
 };
 
 function Field({ icon: Icon, placeholder, value, onChangeText, secureTextEntry, keyboardType, error }) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const [focused,  setFocused]  = useState(false);
   const [visible,  setVisible]  = useState(!secureTextEntry);
   const borderAnim = useRef(new Animated.Value(0)).current;
@@ -52,6 +71,7 @@ function Field({ icon: Icon, placeholder, value, onChangeText, secureTextEntry, 
 
 export default function LoginScreen() {
   const { theme } = useTheme();
+  const styles = getStyles(theme);
   const [isRegistering, setIsRegistering] = useState(false);
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
@@ -124,8 +144,6 @@ export default function LoginScreen() {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       }
     } catch (error) {
-      console.error('AUTH ERROR CODE:', error.code);
-      console.error('AUTH ERROR MSG:', error.message);
       const msg = AUTH_ERRORS[error.code] || 'Ocurrió un error inesperado.';
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') setErrors({ password: msg });
       else if (error.code?.includes('email')) setErrors({ email: msg });
@@ -198,19 +216,3 @@ export default function LoginScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  root:             { flex: 1, backgroundColor: theme.bgBase },
-  scroll:           { flexGrow: 1, justifyContent: 'center', padding: S.lg, paddingBottom: 48 },
-  logoSection:      { alignItems: 'center', marginBottom: 44 },
-  logoCircle:       { width: 80, height: 80, borderRadius: 22, backgroundColor: theme.bgIndigo, borderWidth: 1.5, borderColor: C.bgIndigoL, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
-  appName:          { fontSize: 34, fontWeight: '900', color: theme.textPrimary, letterSpacing: -1 },
-  appTagline:       { fontSize: F.body, color: theme.textMuted, marginTop: 5 },
-  fieldInput:       { flex: 1, fontSize: F.body, color: theme.textPrimary, fontWeight: '500' },
-  fieldError:       { fontSize: F.small, color: C.accentRed, marginTop: 5, marginLeft: 4 },
-  generalError:     { backgroundColor: C.accentRed + '18', borderWidth: 0.5, borderColor: C.accentRed + '50', borderRadius: R.md, padding: 12, marginBottom: 14 },
-  generalErrorText: { color: C.accentRed, fontSize: F.label, fontWeight: '500', textAlign: 'center' },
-  switchBtn:        { alignItems: 'center', marginTop: 22, padding: S.sm },
-  switchText:       { fontSize: F.label, color: theme.textMuted },
-  switchAccent:     { color: theme.accentIndigoL, fontWeight: '700' },
-});
